@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--batchSize', type=int, default=32, help='input batch size')
 parser.add_argument(
-    '--num_points', type=int, default=2500, help='input batch size')
+    '--num_points', type=int, default=21, help='input batch size')  # 2500
 parser.add_argument(
     '--workers', type=int, help='number of data loading workers', default=4)
 parser.add_argument(
@@ -25,7 +25,7 @@ parser.add_argument('--outf', type=str, default='cls', help='output folder')
 parser.add_argument('--model', type=str, default='', help='model path')
 parser.add_argument('--dataset', type=str, required=True, help="dataset path")
 parser.add_argument('--dataset_type', type=str, default='shapenet', help="dataset type shapenet|modelnet40")
-parser.add_argument('--feature_transform', action='store_true', help="use feature transform")
+# parser.add_argument('--feature_transform', action='store_true', help="use feature transform")
 
 opt = parser.parse_args()
 print(opt)
@@ -85,11 +85,16 @@ try:
 except OSError:
     pass
 
-classifier = PointNetCls(k=num_classes, feature_transform=opt.feature_transform)
+# classifier = PointNetCls(k=num_classes, feature_transform=opt.feature_transform)
+classifier = PointNetCls(k=num_classes, feature_transform=False)
 
+start_epoch = 0
 if opt.model != '':
     classifier.load_state_dict(torch.load(opt.model))
-
+    basename = os.path.basename(opt.model)
+    filename, _ = os.path.splitext(basename)
+    idx = filename.rfind('_')
+    start_epoch = int(filename[idx + 1:]) + 1
 
 optimizer = optim.Adam(classifier.parameters(), lr=0.001, betas=(0.9, 0.999))
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
@@ -97,7 +102,7 @@ classifier.cuda()
 
 num_batch = len(dataset) / opt.batchSize
 
-for epoch in range(opt.nepoch):
+for epoch in range(start_epoch, opt.nepoch):
     scheduler.step()
     for i, data in enumerate(dataloader, 0):
         points, target = data
@@ -106,10 +111,11 @@ for epoch in range(opt.nepoch):
         points, target = points.cuda(), target.cuda()
         optimizer.zero_grad()
         classifier = classifier.train()
-        pred, trans, trans_feat = classifier(points)
+        # pred, trans, trans_feat = classifier(points)
+        pred, _, _ = classifier(points)
         loss = F.nll_loss(pred, target)
-        if opt.feature_transform:
-            loss += feature_transform_regularizer(trans_feat) * 0.001
+        # if opt.feature_transform:
+        #     loss += feature_transform_regularizer(trans_feat) * 0.001
         loss.backward()
         optimizer.step()
         pred_choice = pred.data.max(1)[1]
@@ -133,7 +139,7 @@ for epoch in range(opt.nepoch):
 
 total_correct = 0
 total_testset = 0
-for i,data in tqdm(enumerate(testdataloader, 0)):
+for i, data in tqdm(enumerate(testdataloader, 0)):
     points, target = data
     target = target[:, 0]
     points = points.transpose(2, 1)

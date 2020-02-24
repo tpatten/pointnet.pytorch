@@ -1,0 +1,16 @@
+python3 -m pip install [something]
+
+nvidia-docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host tpatten/hand_object_tracking:hands_iccv19_challenge
+
+
+xhost +
+docker container ls -a
+docker container start [container-id]
+docker exec -it [container-id] bash
+export PATH="/usr/lib/nvidia-418/bin":${PATH}
+export LD_LIBRARY_PATH="/usr/lib/nvidia-418:/usr/lib32/nvidia-418":${LD_LIBRARY_PATH}
+
+
+python3 utils/train_classification.py --dataset shapenetcore_partanno_segmentation_benchmark_v0 --dataset_type shapenet
+
+utils/test_classification.py --dataset shapenetcore_partanno_segmentation_benchmark_v0 --dataset_type shapenet --model=cls/cls_model_249.pth

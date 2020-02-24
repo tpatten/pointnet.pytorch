@@ -9,6 +9,7 @@ from tqdm import tqdm
 import json
 from plyfile import PlyData, PlyElement
 
+
 def get_segmentation_classes(root):
     catfile = os.path.join(root, 'synsetoffset2category.txt')
     cat = {}
@@ -43,6 +44,7 @@ def get_segmentation_classes(root):
             print("category {} num segmentation classes {}".format(item, num_seg_classes))
             f.write("{}\t{}\n".format(item, num_seg_classes))
 
+
 def gen_modelnet_id(root):
     classes = []
     with open(os.path.join(root, 'train.txt'), 'r') as f:
@@ -53,6 +55,7 @@ def gen_modelnet_id(root):
         for i in range(len(classes)):
             f.write('{}\t{}\n'.format(classes[i], i))
 
+
 class ShapeNetDataset(data.Dataset):
     def __init__(self,
                  root,
@@ -60,13 +63,15 @@ class ShapeNetDataset(data.Dataset):
                  classification=False,
                  class_choice=None,
                  split='train',
-                 data_augmentation=True):
+                 data_augmentation=True,
+                 regression=False):
         self.npoints = npoints
         self.root = root
         self.catfile = os.path.join(self.root, 'synsetoffset2category.txt')
         self.cat = {}
         self.data_augmentation = data_augmentation
         self.classification = classification
+        self.regression = regression
         self.seg_classes = {}
         
         with open(self.catfile, 'r') as f:
@@ -111,34 +116,40 @@ class ShapeNetDataset(data.Dataset):
         cls = self.classes[self.datapath[index][0]]
         point_set = np.loadtxt(fn[1]).astype(np.float32)
         seg = np.loadtxt(fn[2]).astype(np.int64)
-        #print(point_set.shape, seg.shape)
+        centroid = np.mean(point_set, axis=0)
+        # print(point_set.shape, seg.shape)
+        # print(centroid.shape, centroid)
 
         choice = np.random.choice(len(seg), self.npoints, replace=True)
         #resample
         point_set = point_set[choice, :]
 
-        point_set = point_set - np.expand_dims(np.mean(point_set, axis = 0), 0) # center
-        dist = np.max(np.sqrt(np.sum(point_set ** 2, axis = 1)),0)
+        point_set = point_set - np.expand_dims(np.mean(point_set, axis=0), 0)  # center
+        dist = np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)
         point_set = point_set / dist #scale
 
         if self.data_augmentation:
-            theta = np.random.uniform(0,np.pi*2)
-            rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],[np.sin(theta), np.cos(theta)]])
-            point_set[:,[0,2]] = point_set[:,[0,2]].dot(rotation_matrix) # random rotation
-            point_set += np.random.normal(0, 0.02, size=point_set.shape) # random jitter
+            theta = np.random.uniform(0, np.pi*2)
+            rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+            point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
+            point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
 
         seg = seg[choice]
         point_set = torch.from_numpy(point_set)
         seg = torch.from_numpy(seg)
         cls = torch.from_numpy(np.array([cls]).astype(np.int64))
+        centroid = torch.from_numpy(centroid)
 
-        if self.classification:
+        if self.regression:
+            return point_set, centroid
+        elif self.classification:
             return point_set, cls
         else:
             return point_set, seg
 
     def __len__(self):
         return len(self.datapath)
+
 
 class ModelNetDataset(data.Dataset):
     def __init__(self,
@@ -187,24 +198,24 @@ class ModelNetDataset(data.Dataset):
         cls = torch.from_numpy(np.array([cls]).astype(np.int64))
         return point_set, cls
 
-
     def __len__(self):
         return len(self.fns)
+
 
 if __name__ == '__main__':
     dataset = sys.argv[1]
     datapath = sys.argv[2]
 
     if dataset == 'shapenet':
-        d = ShapeNetDataset(root = datapath, class_choice = ['Chair'])
+        d = ShapeNetDataset(root=datapath, class_choice=['Chair'])
         print(len(d))
         ps, seg = d[0]
-        print(ps.size(), ps.type(), seg.size(),seg.type())
+        print(ps.size(), ps.type(), seg.size(), seg.type())
 
-        d = ShapeNetDataset(root = datapath, classification = True)
+        d = ShapeNetDataset(root=datapath, classification=True)
         print(len(d))
         ps, cls = d[0]
-        print(ps.size(), ps.type(), cls.size(),cls.type())
+        print(ps.size(), ps.type(), cls.size(), cls.type())
         # get_segmentation_classes(datapath)
 
     if dataset == 'modelnet':
