@@ -52,7 +52,6 @@ regressor = regressor.eval()
 
 error_thresholds = np.linspace(0.01, 0.1, num=25, endpoint=True)  # 0.01  # 10 mm (1 cm)
 print(error_thresholds)
-sys.exit(0)
 
 total_correct = np.zeros(error_thresholds.shape)
 total_testset = np.zeros(error_thresholds.shape)
@@ -60,6 +59,7 @@ for i, data in tqdm(enumerate(testdataloader, 0)):
     points, target = data
     points = points.transpose(2, 1)
     points, target = points.cuda(), target.cuda()
+    # print(points.size())
     # regressor = regressor.eval()
     pred = regressor(points)
     targ_np = target.data.cpu().numpy()
@@ -73,4 +73,5 @@ for i, data in tqdm(enumerate(testdataloader, 0)):
 
 print("final accuracy")
 for j in range(error_thresholds.shape[0]):
-    print("{}\t{}".format(error_thresholds[j], total_correct[j] / float(total_testset[j])))
+    # print("{}\t{}".format(error_thresholds[j], total_correct[j] / float(total_testset[j])))
+    print("{}".format(total_correct[j] / float(total_testset[j])))
