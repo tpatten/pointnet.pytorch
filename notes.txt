@@ -13,4 +13,32 @@ export LD_LIBRARY_PATH="/usr/lib/nvidia-418:/usr/lib32/nvidia-418":${LD_LIBRARY_
 
 python3 utils/train_classification.py --dataset shapenetcore_partanno_segmentation_benchmark_v0 --dataset_type shapenet
 
-utils/test_classification.py --dataset shapenetcore_partanno_segmentation_benchmark_v0 --dataset_type shapenet --model=cls/cls_model_249.pth
+python3 utils/test_classification.py --dataset shapenetcore_partanno_segmentation_benchmark_v0 --dataset_type shapenet --model=cls/cls_model_249.pth
+
+
+
+0.0953375086986778
+0.16005567153792624
+0.2265135699373695
+0.3013221990257481
+0.38204592901878914
+0.4582463465553236
+0.5146137787056367
+0.5716771050800278
+0.6235212247738344
+0.675365344467641
+0.7192066805845512
+0.7585247042449548
+0.7881002087682673
+0.81419624217119
+0.8395963813500348
+0.8569937369519833
+0.8733472512178149
+0.8879610299234516
+0.9015309672929714
+0.9123173277661796
+0.9220598469032707
+0.9307585247042449
+0.9380654140570633
+0.9436325678496869
+0.9488517745302714
