@@ -1,6 +1,7 @@
 python3 -m pip install [something]
 
 nvidia-docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host tpatten/hand_object_tracking:hands_iccv19_challenge
+nvidia-docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -v /home/tpatten/v4rtemp:/v4rtemp -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host tpatten/hand_object_tracking:hands_iccv19_challenge
 
 
 xhost +

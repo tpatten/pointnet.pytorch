@@ -76,7 +76,7 @@ try:
 except OSError:
     pass
 
-regressor = PointNetRegression()
+regressor = PointNetRegression(k_out=3)
 
 start_epoch = 0
 if opt.model != '':
@@ -163,6 +163,5 @@ for i, data in tqdm(enumerate(testdataloader, 0)):
     correct = np.where(errs < error_threshold)
     total_correct += len(correct[0])
     total_testset += points.size()[0]  # num_tests
-
 
 print("final accuracy {}".format(total_correct / float(total_testset)))

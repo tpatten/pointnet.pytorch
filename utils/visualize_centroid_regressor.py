@@ -27,7 +27,7 @@ random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
 
 # Set up the model
-regressor = PointNetRegression()
+regressor = PointNetRegression(k_out=3)
 regressor.load_state_dict(torch.load(opt.model))
 regressor.cuda()
 regressor = regressor.eval()

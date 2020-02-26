@@ -8,6 +8,7 @@ import sys
 from tqdm import tqdm 
 import json
 from plyfile import PlyData, PlyElement
+import pickle
 
 
 def get_segmentation_classes(root):
@@ -198,8 +199,67 @@ class ModelNetDataset(data.Dataset):
         cls = torch.from_numpy(np.array([cls]).astype(np.int64))
         return point_set, cls
 
+
+class HO3DDataset(data.Dataset):
+    def __init__(self,
+                 root,
+                 split='train',
+                 data_augmentation=True):
+        self.root = root
+        if split == 'test':
+            splitfile = os.path.join(self.root, 'evaluation.txt')
+        else:
+            splitfile = os.path.join(self.root, 'train.txt')
+        self.data_augmentation = data_augmentation
+
+        # self.meta = {}
+        f = open(splitfile, "r")
+        filelist = [line[:-1] for line in f]
+        f.close()
+
+        self.datapath = []
+        for file in filelist:
+            subject, seq = file.split('/')
+            # joints_filename = os.path.join(self.root, split, subject, 'joints', seq + '.npy')
+            joints_filename = os.path.join(self.root, split, subject, 'meta', seq + '.pkl')
+            grasp_pose_filename = os.path.join(self.root, split, subject, 'grasp', seq + '.npy')
+            self.datapath.append((joints_filename, grasp_pose_filename))
+
+    def __getitem__(self, index):
+        fn = self.datapath[index]
+        # get pickle file
+        with open(fn[0], 'rb') as f:
+            try:
+                pickle_data = pickle.load(f, encoding='latin1')
+            except:
+                pickle_data = pickle.load(f)
+        point_set = pickle_data['handJoints3D']
+        # target = np.load(fn[1])  # TODO should be this put faking it now
+        target = point_set[0:9, :]
+        # center the joints
+        offset = np.expand_dims(np.mean(point_set, axis=0), 0)
+        point_set = point_set - offset
+        # scale the joints
+        dist = np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)
+        point_set = point_set / dist
+
+        # center and scale the grasp pose
+        target[0:3] -= offset
+        target[0:3] /= dist
+
+        #if self.data_augmentation:
+        #    theta = np.random.uniform(0, np.pi * 2)
+        #    rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+        #    point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
+        #    point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
+
+        point_set = torch.from_numpy(point_set.astype(np.float32))
+        target = torch.from_numpy(target.astype(np.float32))
+
+        return point_set, target
+
     def __len__(self):
-        return len(self.fns)
+        return len(self.datapath)
 
 
 if __name__ == '__main__':

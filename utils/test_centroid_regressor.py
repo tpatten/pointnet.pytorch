@@ -45,7 +45,7 @@ testdataloader = torch.utils.data.DataLoader(
         batch_size=opt.batchSize,
         shuffle=True)
 
-regressor = PointNetRegression()
+regressor = PointNetRegression(k_out=3)
 regressor.load_state_dict(torch.load(opt.model))
 regressor.cuda()
 regressor = regressor.eval()
