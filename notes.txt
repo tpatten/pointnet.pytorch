@@ -1,6 +1,10 @@
 python3 -m pip install [something]
 
 nvidia-docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host tpatten/hand_object_tracking:hands_iccv19_challenge
+
+nvidia-docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -v /home/tpatten/v4rtemp:/v4rtemp -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host tpatten/hand_object_tracking:hands_iccv19_challenge
+
+-- Rebecca --
 nvidia-docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -v /home/tpatten/v4rtemp:/v4rtemp -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host tpatten/hand_object_tracking:hands_iccv19_challenge
 
 
@@ -15,3 +19,5 @@ export LD_LIBRARY_PATH="/usr/lib/nvidia-418:/usr/lib32/nvidia-418":${LD_LIBRARY_
 python3 utils/train_classification.py --dataset shapenetcore_partanno_segmentation_benchmark_v0 --dataset_type shapenet
 
 python3 utils/test_classification.py --dataset shapenetcore_partanno_segmentation_benchmark_v0 --dataset_type shapenet --model=cls/cls_model_249.pth
+
+python3 utils/train_centroid_regressor.py --dataset shapenetcore_partanno_segmentation_benchmark_v0 --dataset_type shapenet

@@ -207,9 +207,9 @@ class HO3DDataset(data.Dataset):
                  data_augmentation=True):
         self.root = root
         if split == 'test':
-            splitfile = os.path.join(self.root, 'evaluation.txt')
+            splitfile = os.path.join(self.root, 'grasp_test.txt')
         else:
-            splitfile = os.path.join(self.root, 'train.txt')
+            splitfile = os.path.join(self.root, 'grasp_train.txt')
         self.data_augmentation = data_augmentation
 
         # self.meta = {}
