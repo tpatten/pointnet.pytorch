@@ -9,6 +9,11 @@ from tqdm import tqdm
 import json
 from plyfile import PlyData, PlyElement
 import pickle
+import copy
+
+
+LEFT_TIP_IN_CLOUD = 3221
+RIGHT_TIP_IN_CLOUD = 5204
 
 
 def get_segmentation_classes(root):
@@ -204,15 +209,21 @@ class HO3DDataset(data.Dataset):
     def __init__(self,
                  root,
                  split='train',
+                 gripper_xyz='hand_open.xyz',
                  data_augmentation=True):
         self.root = root
         if split == 'test':
             splitfile = os.path.join(self.root, 'grasp_test.txt')
+            split_root_name = 'train'
         else:
             splitfile = os.path.join(self.root, 'grasp_train.txt')
+            split_root_name = 'train'
         self.data_augmentation = data_augmentation
 
-        # self.meta = {}
+        # Get the gripper model
+        self.base_pcd = np.loadtxt(gripper_xyz)
+
+        # Get the files
         f = open(splitfile, "r")
         filelist = [line[:-1] for line in f]
         f.close()
@@ -220,22 +231,61 @@ class HO3DDataset(data.Dataset):
         self.datapath = []
         for file in filelist:
             subject, seq = file.split('/')
-            # joints_filename = os.path.join(self.root, split, subject, 'joints', seq + '.npy')
-            joints_filename = os.path.join(self.root, split, subject, 'meta', seq + '.pkl')
-            grasp_pose_filename = os.path.join(self.root, split, subject, 'grasp', seq + '.npy')
+            joints_filename = os.path.join(self.root, split_root_name, subject, 'meta', seq + '.pkl')
+            grasp_pose_filename = os.path.join(self.root, split_root_name, subject, 'meta', 'grasp_bl_' + seq + '.pkl')
             self.datapath.append((joints_filename, grasp_pose_filename))
 
     def __getitem__(self, index):
         fn = self.datapath[index]
-        # get pickle file
+
+        # Get the hand joints
+        pickle_data = None
         with open(fn[0], 'rb') as f:
             try:
                 pickle_data = pickle.load(f, encoding='latin1')
             except:
                 pickle_data = pickle.load(f)
         point_set = pickle_data['handJoints3D']
-        # target = np.load(fn[1])  # TODO should be this put faking it now
-        target = point_set[0:9, :]
+
+        # Get the gripper pose
+        pickle_data = None
+        with open(fn[1], 'rb') as f:
+            try:
+                pickle_data = pickle.load(f, encoding='latin1')
+            except:
+                pickle_data = pickle.load(f)
+        grasp_pose = pickle_data.reshape(4, 4)
+        # Rotate the cloud
+        pts = copy.deepcopy(self.base_pcd)
+        pts = np.matmul(pts, np.linalg.inv(grasp_pose[:3, :3]))
+        # obj_trans = grasp_pose[:3, 3]
+        # pts += obj_trans
+
+        # Get the approach and roll
+        left_tip = pts[LEFT_TIP_IN_CLOUD]
+        right_tip = pts[RIGHT_TIP_IN_CLOUD]
+        gripper_mid_point = 0.5 * (left_tip + right_tip)
+        approach_vec = np.asarray(gripper_mid_point)
+        approach_vec /= np.linalg.norm(approach_vec)
+        close_vec = right_tip - left_tip
+        close_vec /= np.linalg.norm(close_vec)
+        # out_of_plane = np.cross(close_vec, approach_vec)  # Only need this in testing to get the grasp
+
+        # target = point_set[0:9, :]
+        target = np.zeros((1, 9)).flatten()
+        # gripper_translation = grasp_pose[:3, 3]
+        # gripper_translation -= offset.flatten()
+        # gripper_translation /= dist
+        target[0:3] = grasp_pose[:3, 3].flatten()
+        target[3:6] = approach_vec
+        target[6:9] = close_vec
+
+        if self.data_augmentation:
+            theta = np.random.uniform(-0.1 * np.pi, 0.1 * np.pi)
+            rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+            point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
+            point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
+
         # center the joints
         offset = np.expand_dims(np.mean(point_set, axis=0), 0)
         point_set = point_set - offset
@@ -244,15 +294,10 @@ class HO3DDataset(data.Dataset):
         point_set = point_set / dist
 
         # center and scale the grasp pose
-        target[0:3] -= offset
+        target[0:3] -= offset.flatten()
         target[0:3] /= dist
 
-        #if self.data_augmentation:
-        #    theta = np.random.uniform(0, np.pi * 2)
-        #    rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-        #    point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
-        #    point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
-
+        # Create tensors and return
         point_set = torch.from_numpy(point_set.astype(np.float32))
         target = torch.from_numpy(target.astype(np.float32))
 

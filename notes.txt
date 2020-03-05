@@ -21,3 +21,5 @@ python3 utils/train_classification.py --dataset shapenetcore_partanno_segmentati
 python3 utils/test_classification.py --dataset shapenetcore_partanno_segmentation_benchmark_v0 --dataset_type shapenet --model=cls/cls_model_249.pth
 
 python3 utils/train_centroid_regressor.py --dataset shapenetcore_partanno_segmentation_benchmark_v0 --dataset_type shapenet
+
+python3 utils/train_gripper_pose_regressor.py --dataset /v4rtemp/datasets/HandTracking/HO3D_v2/

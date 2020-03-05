@@ -139,10 +139,11 @@ for epoch in range(start_epoch, opt.nepoch):
             print('[%d: %d/%d] %s loss: %f accuracy: %f' % (epoch, i, num_batch, blue('test'), loss.item(),
                                                             len(correct[0]) / float(opt.batchSize)))
 
-    torch.save(regressor.state_dict(), '%s/cls_model_%d.pth' % (opt.outf, epoch))
+    if epoch != 0:
+        torch.save(regressor.state_dict(), '%s/cls_model_%d.pth' % (opt.outf, epoch))
 
     # Only keep every 10th
-    if epoch != 0 and (epoch - 1) % 10 != 0:
+    if (epoch - 1) % 10 != 0:
         os.remove('%s/cls_model_%d.pth' % (opt.outf, epoch - 1))
 
 total_correct = 0
