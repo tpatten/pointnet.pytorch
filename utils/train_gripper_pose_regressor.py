@@ -113,11 +113,11 @@ for epoch in range(start_epoch, opt.nepoch):
                                                             len(correct[0]) / float(opt.batchSize)))
 
     if epoch != 0:
-        torch.save(regressor.state_dict(), '%s/cls_model_%d.pth' % (opt.outf, epoch))
+        torch.save(regressor.state_dict(), '%s/gpr_model_%d.pth' % (opt.outf, epoch))
 
     # Only keep every 10th
-    if (epoch - 1) % 10 != 0:
-        os.remove('%s/cls_model_%d.pth' % (opt.outf, epoch - 1))
+    if epoch > 0 and (epoch - 1) % 10 != 0:
+        os.remove('%s/gpr_model_%d.pth' % (opt.outf, epoch - 1))
 
 total_correct = 0
 total_testset = 0
