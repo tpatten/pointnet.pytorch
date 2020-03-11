@@ -301,7 +301,7 @@ class HO3DDataset(data.Dataset):
         point_set = torch.from_numpy(point_set.astype(np.float32))
         target = torch.from_numpy(target.astype(np.float32))
 
-        return point_set, target
+        return point_set, target, offset, dist
 
     def __len__(self):
         return len(self.datapath)

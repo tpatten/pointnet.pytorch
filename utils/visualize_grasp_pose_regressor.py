@@ -7,13 +7,13 @@ import torch.utils.data
 from pointnet.dataset import HO3DDataset
 from pointnet.model import PointNetRegression
 import torch.nn.functional as F
-from tqdm import tqdm
 import numpy as np
 import open3d as o3d
 import pickle
 import transforms3d as tf3d
 import copy
 import cv2
+import error_def
 
 
 def visualize(meta_filename, grasp_pose_filename, models_path):
@@ -63,10 +63,18 @@ def visualize(meta_filename, grasp_pose_filename, models_path):
 
     # Load the gripper cloud
     gripper_xyz = 'hand_open.xyz'
+    gripper_xyz = np.loadtxt(gripper_xyz)
     gripper_pcd = o3d.geometry.PointCloud()
-    gripper_pcd.points = o3d.utility.Vector3dVector(np.loadtxt(gripper_xyz))
+    gripper_pcd.points = o3d.utility.Vector3dVector(gripper_xyz)
     gripper_pcd_gt = copy.deepcopy(gripper_pcd)
     gripper_pcd_predicted = copy.deepcopy(gripper_pcd)
+
+    # Compute the diameter
+    centered_gripper_pts = copy.deepcopy(gripper_xyz)
+    offset = np.expand_dims(np.mean(centered_gripper_pts, axis=0), 0)
+    centered_gripper_pts = centered_gripper_pts - offset
+    max_diameter = 2.0 * np.max(np.sqrt(np.sum(centered_gripper_pts ** 2, axis=1)), 0)
+    print('Gripper diameter = {}'.format(max_diameter))
 
     # Transform with ground truth
     pts = np.asarray(gripper_pcd.points)
@@ -89,10 +97,16 @@ def visualize(meta_filename, grasp_pose_filename, models_path):
     rot[:, 0] = x_axis
     rot[:, 1] = y_axis
     rot[:, 2] = z_axis
+    #rot[:, 0] = - x_axis
+    #rot[:, 1] = - y_axis
+    #rot[:, 2] = z_axis
     pts = np.asarray(gripper_pcd.points)
     pts = np.matmul(pts, np.linalg.inv(rot))
     pts += gripper_trans_scaled
     gripper_pcd_predicted.points = o3d.utility.Vector3dVector(pts)
+    predicted_gripper_transform = np.eye(4)
+    predicted_gripper_transform[:3, :3] = rot
+    predicted_gripper_transform[:3, 3] = gripper_trans_scaled
 
     print('GROUND TRUTH')
     print(gripper_transform)
@@ -108,6 +122,12 @@ def visualize(meta_filename, grasp_pose_filename, models_path):
                                         np.degrees(euler_prediction[2])))
 
     print('ERROR')
+    print('ADD {}'.format(error_def.add_error(gripper_transform, predicted_gripper_transform,
+                                              np.asarray(gripper_pcd.points))))
+    print('ADD Symmetric {}'.format(error_def.add_symmetric_error(gripper_transform, predicted_gripper_transform,
+                                              np.asarray(gripper_pcd.points))))
+    print('Translation {}'.format(error_def.translation_error(gripper_transform, predicted_gripper_transform)))
+    print('Rotation {}'.format(np.degrees(error_def.rotation_error(gripper_transform, predicted_gripper_transform)[0])))
 
     # Visualize
     vis = o3d.visualization.Visualizer()
