@@ -9,9 +9,15 @@ from pointnet.model import PointNetRegression
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
+import error_def
 
-error_threshold = 0.01  # 10 mm (1 cm)
 num_points = 21
+
+error_threshold = 0.1 * 0.232280153674483
+add_threshold = error_threshold
+adds_threshold = add_threshold
+translation_threshold = 0.05
+rotation_threshold = np.radians(5)
 
 
 parser = argparse.ArgumentParser()
@@ -57,6 +63,9 @@ testdataloader = torch.utils.data.DataLoader(
 
 print(len(dataset), len(test_dataset))
 
+gripper_filename = 'hand_open.xyz'
+gripper_pts = np.loadtxt(gripper_filename)
+
 try:
     os.makedirs(opt.outf)
 except OSError:
@@ -78,10 +87,13 @@ regressor.cuda()
 
 num_batch = len(dataset) / opt.batchSize
 
+all_errors = {}
+all_errors[error_def.ADD_CODE] = []
+
 for epoch in range(start_epoch, opt.nepoch):
     scheduler.step()
     for i, data in enumerate(dataloader, 0):
-        points, target, _, _ = data
+        points, target, offset, dist = data
         points = points.transpose(2, 1)
         points, target = points.cuda(), target.cuda()
         optimizer.zero_grad()
@@ -92,14 +104,19 @@ for epoch in range(start_epoch, opt.nepoch):
         optimizer.step()
         targ_np = target.data.cpu().numpy()
         pred_np = pred.data.cpu().numpy()
-        errs = np.linalg.norm(targ_np - pred_np, axis=1)
-        correct = np.where(errs < error_threshold)
-        print('[%d: %d/%d] train loss: %f accuracy: %f' % (epoch, i, num_batch, loss.item(),
-                                                           len(correct[0]) / float(opt.batchSize)))
+        offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
+        dist_np = dist.data.cpu().numpy().reshape((pred_np.shape[0], 1))
+
+        targ_tfs = error_def.to_transform_batch(targ_np, offset_np, dist_np)
+        pred_tfs = error_def.to_transform_batch(pred_np, offset_np, dist_np)
+        errs = error_def.get_all_errors_batch(targ_tfs, pred_tfs, gripper_pts, all_errors)
+        evals = error_def.eval_grasps(errs, error_threshold, None, None)
+
+        print('[%d: %d/%d] train loss: %f accuracy: %f' % (epoch, i, num_batch, loss.item(), evals[0]))
 
         if i % 10 == 0:
             j, data = next(enumerate(testdataloader, 0))
-            points, target = data
+            points, target, offset, dist = data
             points = points.transpose(2, 1)
             points, target = points.cuda(), target.cuda()
             regressor = regressor.eval()
@@ -107,10 +124,15 @@ for epoch in range(start_epoch, opt.nepoch):
             loss = F.mse_loss(pred, target)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
-            errs = np.linalg.norm(targ_np - pred_np, axis=1)
-            correct = np.where(errs < error_threshold)
-            print('[%d: %d/%d] %s loss: %f accuracy: %f' % (epoch, i, num_batch, blue('test'), loss.item(),
-                                                            len(correct[0]) / float(opt.batchSize)))
+            offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
+            dist_np = dist.data.cpu().numpy().reshape((pred_np.shape[0], 1))
+
+            targ_tfs = error_def.to_transform_batch(targ_np, offset_np, dist_np)
+            pred_tfs = error_def.to_transform_batch(pred_np, offset_np, dist_np)
+            errs = error_def.get_all_errors_batch(targ_tfs, pred_tfs, gripper_pts, all_errors)
+            evals = error_def.eval_grasps(errs, error_threshold, None, None)
+
+            print('[%d: %d/%d] %s loss: %f accuracy: %f' % (epoch, i, num_batch, blue('test'), loss.item(), evals[0]))
 
     if epoch != 0:
         torch.save(regressor.state_dict(), '%s/gpr_model_%d.pth' % (opt.outf, epoch))
@@ -119,19 +141,32 @@ for epoch in range(start_epoch, opt.nepoch):
     if epoch > 0 and (epoch - 1) % 10 != 0:
         os.remove('%s/gpr_model_%d.pth' % (opt.outf, epoch - 1))
 
-total_correct = 0
-total_testset = 0
+all_errors[error_def.ADDS_CODE] = []
+all_errors[error_def.TRANSLATION_CODE] = []
+all_errors[error_def.ROTATION_CODE] = []
+all_errors[error_def.ROTATION_X_CODE] = []
+all_errors[error_def.ROTATION_Y_CODE] = []
+all_errors[error_def.ROTATION_Z_CODE] = []
+
 for i, data in tqdm(enumerate(testdataloader, 0)):
-    points, target = data
+    points, target, offset, dist = data
     points = points.transpose(2, 1)
     points, target = points.cuda(), target.cuda()
     regressor = regressor.eval()
     pred = regressor(points)
     targ_np = target.data.cpu().numpy()
     pred_np = pred.data.cpu().numpy()
-    errs = np.linalg.norm(targ_np - pred_np, axis=1)
-    correct = np.where(errs < error_threshold)
-    total_correct += len(correct[0])
-    total_testset += points.size()[0]
+    offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
+    dist_np = dist.data.cpu().numpy().reshape((pred_np.shape[0], 1))
 
-print("final accuracy {}".format(total_correct / float(total_testset)))
+    targ_tfs = error_def.to_transform_batch(targ_np, offset_np, dist_np)
+    pred_tfs = error_def.to_transform_batch(pred_np, offset_np, dist_np)
+    errs = error_def.get_all_errors_batch(targ_tfs, pred_tfs, gripper_pts, all_errors)
+    for key in all_errors:
+        all_errors[key].extend(errs[key])
+
+evals = error_def.eval_grasps(all_errors, add_threshold, adds_threshold, (translation_threshold, rotation_threshold))
+print('\n--- FINAL ACCURACY ---')
+print('ADD\tADDS\tT/R\tT/Rxyz')
+print('{}\t{}\t{}\t{}'.format(round(evals[0], 3), round(evals[1], 3), round(evals[2], 3), round(evals[3], 3)))
+print('')

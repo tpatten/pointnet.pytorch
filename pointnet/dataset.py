@@ -258,8 +258,6 @@ class HO3DDataset(data.Dataset):
         # Rotate the cloud
         pts = copy.deepcopy(self.base_pcd)
         pts = np.matmul(pts, np.linalg.inv(grasp_pose[:3, :3]))
-        # obj_trans = grasp_pose[:3, 3]
-        # pts += obj_trans
 
         # Get the approach and roll
         left_tip = pts[LEFT_TIP_IN_CLOUD]
@@ -269,13 +267,9 @@ class HO3DDataset(data.Dataset):
         approach_vec /= np.linalg.norm(approach_vec)
         close_vec = right_tip - left_tip
         close_vec /= np.linalg.norm(close_vec)
-        # out_of_plane = np.cross(close_vec, approach_vec)  # Only need this in testing to get the grasp
 
-        # target = point_set[0:9, :]
+        # Create the target
         target = np.zeros((1, 9)).flatten()
-        # gripper_translation = grasp_pose[:3, 3]
-        # gripper_translation -= offset.flatten()
-        # gripper_translation /= dist
         target[0:3] = grasp_pose[:3, 3].flatten()
         target[3:6] = approach_vec
         target[6:9] = close_vec
@@ -290,7 +284,7 @@ class HO3DDataset(data.Dataset):
         offset = np.expand_dims(np.mean(point_set, axis=0), 0)
         point_set = point_set - offset
         # scale the joints
-        dist = np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)
+        dist = 2.0 * np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)  # Multiply by 2 so that grasp pose is in [0, 1]
         point_set = point_set / dist
 
         # center and scale the grasp pose
