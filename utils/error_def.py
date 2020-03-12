@@ -137,38 +137,56 @@ def eval_grasps(error_dict, add_th=None, adds_th=None, tr_th=None):
     trxyz_eval = 0.
 
     if add_th is not None and ADD_CODE in error_dict.keys():
-        num_correct = 0
-        for e in error_dict[ADD_CODE]:
-            if e <= add_th:
-                num_correct += 1
-        add_eval = float(num_correct) / float(len(error_dict[ADD_CODE]))
+        add_eval = eval_add_adds(error_dict[ADD_CODE], add_th)
 
     if adds_th is not None and ADDS_CODE in error_dict.keys():
-        num_correct = 0
-        for e in error_dict[ADDS_CODE]:
-            if e <= adds_th:
-                num_correct += 1
-        adds_eval = float(num_correct) / float(len(error_dict[ADDS_CODE]))
+        adds_eval = eval_add_adds(error_dict[ADDS_CODE], adds_th)
 
-    if tr_th is not None and TRANSLATION_CODE in error_dict.keys() and ROTATION_CODE in error_dict.keys():
-        num_correct = 0
-        t_e = error_dict[TRANSLATION_CODE]
-        r_e = error_dict[ROTATION_CODE]
-        for i in range(len(t_e)):
-            if t_e[i] <= tr_th[0] and r_e[i] <= tr_th[1]:
-                num_correct += 1
-        tr_eval = float(num_correct) / float(len(t_e))
-
-    if tr_th is not None and TRANSLATION_CODE in error_dict.keys() and ROTATION_X_CODE in error_dict.keys() and\
-            ROTATION_Y_CODE in error_dict.keys() and ROTATION_Z_CODE in error_dict.keys():
-        num_correct = 0
-        t_e = error_dict[TRANSLATION_CODE]
-        r_e_x = error_dict[ROTATION_X_CODE]
-        r_e_y = error_dict[ROTATION_Y_CODE]
-        r_e_z = error_dict[ROTATION_Z_CODE]
-        for i in range(len(t_e)):
-            if t_e[i] <= tr_th[0] and r_e_x[i] <= tr_th[1] and r_e_y[i] <= tr_th[1] and r_e_z[i] <= tr_th[1]:
-                num_correct += 1
-        trxyz_eval = float(num_correct) / float(len(t_e))
+    if tr_th is not None:
+        if TRANSLATION_CODE in error_dict.keys():
+            t_e = error_dict[TRANSLATION_CODE]
+            r_e = []
+            r_e_x = []
+            r_e_y = []
+            r_e_z = []
+            if ROTATION_CODE in error_dict.keys():
+                r_e = error_dict[ROTATION_CODE]
+            if ROTATION_X_CODE in error_dict.keys() and \
+                    ROTATION_Y_CODE in error_dict.keys() and ROTATION_Z_CODE in error_dict.keys():
+                r_e_x = error_dict[ROTATION_X_CODE]
+                r_e_y = error_dict[ROTATION_Y_CODE]
+                r_e_z = error_dict[ROTATION_Z_CODE]
+            tr_eval, trxyz_eval = eval_translation_rotation(t_e, r_e, r_e_x, r_e_y, r_e_z, tr_th[0], tr_th[1])
 
     return add_eval, adds_eval, tr_eval, trxyz_eval
+
+
+def eval_add_adds(errors, threshold):
+    num_correct = 0
+    for e in errors:
+        if e <= threshold:
+            num_correct += 1
+    return float(num_correct) / float(len(errors))
+
+
+def eval_translation_rotation(t_errors, r_errors, r_x_errors, r_y_errors, r_z_errors, t_threshold, r_threshold):
+    if len(r_errors) > 0:
+        num_correct = 0
+        for i in range(len(t_errors)):
+            if t_errors[i] <= t_threshold and r_errors[i] <= r_threshold:
+                num_correct += 1
+        tr_eval = float(num_correct) / float(len(t_errors))
+    else:
+        tr_eval = 0.
+
+    if len(r_x_errors) > 0 and len(r_y_errors) > 0 and len(r_z_errors) > 0:
+        num_correct = 0
+        for i in range(len(t_errors)):
+            if t_errors[i] <= t_threshold and r_x_errors[i] <= r_threshold and r_y_errors[i] <= r_threshold and \
+                    r_z_errors[i] <= r_threshold:
+                num_correct += 1
+        trxyz_eval = float(num_correct) / float(len(t_errors))
+    else:
+        trxyz_eval = 0.
+
+    return tr_eval, trxyz_eval
