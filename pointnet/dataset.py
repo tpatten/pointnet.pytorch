@@ -284,7 +284,8 @@ class HO3DDataset(data.Dataset):
         offset = np.expand_dims(np.mean(point_set, axis=0), 0)
         point_set = point_set - offset
         # scale the joints
-        dist = 2.0 * np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)  # Multiply by 2 so that grasp pose is in [0, 1]
+        # dist = 2.0 * np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)  # Multiply by 2 so that grasp pose is in [0, 1]
+        dist = np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)
         point_set = point_set / dist
 
         # center and scale the grasp pose

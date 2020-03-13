@@ -22,6 +22,16 @@ tr_th_base = np.linspace(0, 0.5, num_steps, endpoint=True, dtype=np.float32)
 t_th = tr_th_base
 r_th = np.radians(100*tr_th_base)
 
+print('--- ADD/S THRESHOLDS ---')
+for t in add_th:
+    print(t)
+print('')
+
+print('--- T/R THRESHOLDS ---')
+for t in t_th:
+    print(t)
+print('')
+
 with open(opt.file, 'rb') as f:
     try:
         pickle_data = pickle.load(f, encoding='latin1')

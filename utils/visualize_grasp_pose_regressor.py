@@ -70,11 +70,13 @@ def visualize(meta_filename, grasp_pose_filename, models_path):
     gripper_pcd_predicted = copy.deepcopy(gripper_pcd)
 
     # Compute the diameter
+    '''
     centered_gripper_pts = copy.deepcopy(gripper_xyz)
-    offset = np.expand_dims(np.mean(centered_gripper_pts, axis=0), 0)
-    centered_gripper_pts = centered_gripper_pts - offset
+    g_offset = np.expand_dims(np.mean(centered_gripper_pts, axis=0), 0)
+    centered_gripper_pts = centered_gripper_pts - g_offset
     max_diameter = 2.0 * np.max(np.sqrt(np.sum(centered_gripper_pts ** 2, axis=1)), 0)
     print('Gripper diameter = {}'.format(max_diameter))
+    '''
 
     # Transform with ground truth
     pts = np.asarray(gripper_pcd.points)
@@ -85,7 +87,6 @@ def visualize(meta_filename, grasp_pose_filename, models_path):
 
     # Transform with the prediction
     gripper_trans_scaled = copy.deepcopy(pred_np[0:3])
-    print(gripper_trans_scaled)
     gripper_trans_scaled *= dist
     gripper_trans_scaled += offset.flatten()
     z_axis = copy.deepcopy(pred_np[3:6])
@@ -97,9 +98,6 @@ def visualize(meta_filename, grasp_pose_filename, models_path):
     rot[:, 0] = x_axis
     rot[:, 1] = y_axis
     rot[:, 2] = z_axis
-    #rot[:, 0] = - x_axis
-    #rot[:, 1] = - y_axis
-    #rot[:, 2] = z_axis
     pts = np.asarray(gripper_pcd.points)
     pts = np.matmul(pts, np.linalg.inv(rot))
     pts += gripper_trans_scaled
@@ -125,7 +123,7 @@ def visualize(meta_filename, grasp_pose_filename, models_path):
     print('ADD {}'.format(error_def.add_error(gripper_transform, predicted_gripper_transform,
                                               np.asarray(gripper_pcd.points))))
     print('ADD Symmetric {}'.format(error_def.add_symmetric_error(gripper_transform, predicted_gripper_transform,
-                                              np.asarray(gripper_pcd.points))))
+                                                                  np.asarray(gripper_pcd.points))))
     print('Translation {}'.format(error_def.translation_error(gripper_transform, predicted_gripper_transform)))
     print('Rotation {}'.format(np.degrees(error_def.rotation_error(gripper_transform, predicted_gripper_transform)[0])))
 
@@ -133,8 +131,8 @@ def visualize(meta_filename, grasp_pose_filename, models_path):
     vis = o3d.visualization.Visualizer()
     vis.create_window()
     # original cloud
-    gripper_pcd.paint_uniform_color([0.4, 0.4, 0.4])
-    vis.add_geometry(gripper_pcd)
+    # gripper_pcd.paint_uniform_color([0.4, 0.4, 0.4])
+    # vis.add_geometry(gripper_pcd)
     # ground truth
     gripper_pcd_gt.paint_uniform_color([0., 1., 0.])
     vis.add_geometry(gripper_pcd_gt)
