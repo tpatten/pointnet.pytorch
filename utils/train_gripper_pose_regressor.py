@@ -14,7 +14,7 @@ import error_def
 
 num_points = 21
 
-error_threshold = 0.1 * 0.232280153674483
+error_threshold = 0.25 * 0.232280153674483
 add_threshold = error_threshold
 adds_threshold = add_threshold
 translation_threshold = 0.05
@@ -91,11 +91,12 @@ num_batch = len(dataset) / opt.batchSize
 all_errors = {}
 all_errors[error_def.ADD_CODE] = []
 
-tensorboard_writer = SummaryWriter()
+tensorboard_writer = SummaryWriter('/home/tpatten/logs')
 
-
-plot_counter = 0
 for epoch in range(start_epoch, opt.nepoch):
+    epoch_loss = [0, 0]
+    epoch_accuracy = [0, 0]
+    num_tests = 0
     scheduler.step()
     for i, data in enumerate(dataloader, 0):
         points, target, offset, dist = data
@@ -118,6 +119,8 @@ for epoch in range(start_epoch, opt.nepoch):
         evals = error_def.eval_grasps(errs, error_threshold, None, None)
 
         print('[%d: %d/%d] train loss: %f accuracy: %f' % (epoch, i, num_batch, loss.item(), evals[0]))
+        epoch_loss[0] += loss.item()
+        epoch_accuracy[0] += evals[0]
 
         if i % 10 == 0:
             j, data = next(enumerate(testdataloader, 0))
@@ -139,13 +142,9 @@ for epoch in range(start_epoch, opt.nepoch):
 
             print('[%d: %d/%d] %s loss: %f accuracy: %f' % (epoch, i, num_batch, blue('test'),
                                                             loss_test.item(), evals_test[0]))
-
-            # To tensorboard
-            tensorboard_writer.add_scalar('Loss/train', loss.item(), plot_counter)
-            tensorboard_writer.add_scalar('Loss/test', loss_test.item(), plot_counter)
-            tensorboard_writer.add_scalar('Accuracy/train', evals[0], plot_counter)
-            tensorboard_writer.add_scalar('Accuracy/test', evals_test[0], plot_counter)
-            plot_counter += 1
+            epoch_loss[1] += loss_test.item()
+            epoch_accuracy[1] += evals_test[0]
+            num_tests += 1
 
     if epoch != 0:
         torch.save(regressor.state_dict(), '%s/gpr_model_%d.pth' % (opt.outf, epoch))
@@ -153,6 +152,14 @@ for epoch in range(start_epoch, opt.nepoch):
     # Only keep every 10th
     if epoch > 0 and (epoch - 1) % 10 != 0:
         os.remove('%s/gpr_model_%d.pth' % (opt.outf, epoch - 1))
+
+    # To tensorboard
+    epoch_loss[0] /= num_batch
+    epoch_accuracy[0] /= num_batch
+    epoch_loss[1] /= float(num_tests)
+    epoch_accuracy[1] /= float(num_tests)
+    tensorboard_writer.add_scalars('Loss', {'train': epoch_loss[0], 'test': epoch_loss[1]}, epoch)
+    tensorboard_writer.add_scalars('Accuracy', {'train': epoch_accuracy[0], 'test': epoch_accuracy[1]}, epoch)
 
 all_errors[error_def.ADDS_CODE] = []
 all_errors[error_def.TRANSLATION_CODE] = []
