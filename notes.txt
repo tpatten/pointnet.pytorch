@@ -1,14 +1,23 @@
 python3 -m pip install [something]
+python3 -m pip install scikit-image
 
 Mount server
 sudo mount -t cifs //v4r-nas.acin.tuwien.ac.at/v4rtemp v4rtemp -o username=tpa
 
-nvidia-docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host tpatten/hand_object_tracking:hands_iccv19_challenge
-
-nvidia-docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -v /home/tpatten/v4rtemp:/v4rtemp -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host tpatten/hand_object_tracking:hands_iccv19_challenge
+nvidia-docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -v /home/tpatten/v4rtemp:/v4rtemp -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host -v /usr/lib/nvidia-418:/usr/lib/nvidia-418 -v /usr/lib32/nvidia-418:/usr/lib32/nvidia-418 tpatten/hand_object_tracking:hands_iccv19_challenge
 
 -- Rebecca --
-nvidia-docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -v /home/tpatten/v4rtemp:/v4rtemp -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host tpatten/hand_object_tracking:hands_iccv19_challenge
+nvidia-docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -v /home/tpatten/v4rtemp:/v4rtemp -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host -v /usr/lib/nvidia-418:/usr/lib/nvidia-418 -v /usr/lib32/nvidia-418:/usr/lib32/nvidia-418 tpatten/hand_object_tracking:hands_iccv19_challenge
+
+-- Racer --
+docker run --gpus all -it -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -v /home/tpatten/v4rtemp:/v4rtemp -e DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 --network=host -v /usr/lib/nvidia-418:/usr/lib/nvidia-418 -v /usr/lib32/nvidia-418:/usr/lib32/nvidia-418 -p 6006:6006 tpatten/hand_object_tracking:hands_iccv19_challenge
+
+-- SSH with port forwarding --
+ssh -L 16006:127.0.0.1:6006 tpatten@racer.acin.tuwien.ac.at
+
+tensorboard --logdir /home/tpatten/logs --port 6006
+
+Tensorboard http://127.0.0.1:16006
 
 
 xhost +
@@ -26,3 +35,11 @@ python3 utils/test_classification.py --dataset shapenetcore_partanno_segmentatio
 python3 utils/train_centroid_regressor.py --dataset shapenetcore_partanno_segmentation_benchmark_v0 --dataset_type shapenet
 
 python3 utils/train_gripper_pose_regressor.py --dataset /v4rtemp/datasets/HandTracking/HO3D_v2/
+
+python3 vis_HO3D.py /v4rtemp/datasets/HandTracking/HO3D_v2/ /v4rtemp/datasets/HandTracking/HO3D_v2/ -split train -seq ABF10 -id 0000 -visType open3d
+
+
+https://robotics.stackexchange.com/questions/14456/determine-the-relative-camera-pose-given-two-rgb-camera-frames-in-opencv-python
+https://docs.opencv.org/3.0-beta/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html#findessentialmat
+https://docs.opencv.org/3.0-beta/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html#recoverpose
+https://stackoverflow.com/questions/33906111/how-do-i-estimate-positions-of-two-cameras-in-opencv

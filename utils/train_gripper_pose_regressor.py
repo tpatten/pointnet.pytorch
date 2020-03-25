@@ -4,6 +4,7 @@ import os
 import random
 import torch.optim as optim
 import torch.utils.data
+from torch.utils.tensorboard import SummaryWriter
 from pointnet.dataset import HO3DDataset
 from pointnet.model import PointNetRegression
 import torch.nn.functional as F
@@ -90,6 +91,10 @@ num_batch = len(dataset) / opt.batchSize
 all_errors = {}
 all_errors[error_def.ADD_CODE] = []
 
+tensorboard_writer = SummaryWriter()
+
+
+plot_counter = 0
 for epoch in range(start_epoch, opt.nepoch):
     scheduler.step()
     for i, data in enumerate(dataloader, 0):
@@ -121,7 +126,7 @@ for epoch in range(start_epoch, opt.nepoch):
             points, target = points.cuda(), target.cuda()
             regressor = regressor.eval()
             pred = regressor(points)
-            loss = F.mse_loss(pred, target)
+            loss_test = F.mse_loss(pred, target)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
             offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
@@ -130,9 +135,17 @@ for epoch in range(start_epoch, opt.nepoch):
             targ_tfs = error_def.to_transform_batch(targ_np, offset_np, dist_np)
             pred_tfs = error_def.to_transform_batch(pred_np, offset_np, dist_np)
             errs = error_def.get_all_errors_batch(targ_tfs, pred_tfs, gripper_pts, all_errors)
-            evals = error_def.eval_grasps(errs, error_threshold, None, None)
+            evals_test = error_def.eval_grasps(errs, error_threshold, None, None)
 
-            print('[%d: %d/%d] %s loss: %f accuracy: %f' % (epoch, i, num_batch, blue('test'), loss.item(), evals[0]))
+            print('[%d: %d/%d] %s loss: %f accuracy: %f' % (epoch, i, num_batch, blue('test'),
+                                                            loss_test.item(), evals_test[0]))
+
+            # To tensorboard
+            tensorboard_writer.add_scalar('Loss/train', loss.item(), plot_counter)
+            tensorboard_writer.add_scalar('Loss/test', loss_test.item(), plot_counter)
+            tensorboard_writer.add_scalar('Accuracy/train', evals[0], plot_counter)
+            tensorboard_writer.add_scalar('Accuracy/test', evals_test[0], plot_counter)
+            plot_counter += 1
 
     if epoch != 0:
         torch.save(regressor.state_dict(), '%s/gpr_model_%d.pth' % (opt.outf, epoch))
