@@ -27,7 +27,7 @@ parser.add_argument(
 parser.add_argument(
     '--workers', type=int, help='number of data loading workers', default=4)
 parser.add_argument(
-    '--nepoch', type=int, default=250, help='number of epochs to train for')
+    '--nepoch', type=int, default=50, help='number of epochs to train for')
 parser.add_argument('--outf', type=str, default='gpr', help='output folder')
 parser.add_argument('--model', type=str, default='', help='model path')
 parser.add_argument('--dataset', type=str, required=True, help="dataset path")
@@ -82,7 +82,9 @@ if opt.model != '':
     idx = filename.rfind('_')
     start_epoch = int(filename[idx + 1:]) + 1
 
-optimizer = optim.Adam(regressor.parameters(), lr=0.001, betas=(0.9, 0.999))
+learning_rate = 0.001
+optimizer = optim.Adam(regressor.parameters(), lr=learning_rate, betas=(0.9, 0.999))  # Could add weight decay: weight_decay=?
+# Decays the learning rate of each parameter group by gamma every step_size in epochs
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 regressor.cuda()
 
@@ -91,7 +93,7 @@ num_batch = len(dataset) / opt.batchSize
 all_errors = {}
 all_errors[error_def.ADD_CODE] = []
 
-tensorboard_writer = SummaryWriter('/home/tpatten/logs')
+tensorboard_writer = SummaryWriter('/home/tpatten/logs/lr' + str(learning_rate).replace('.', '_'))
 
 for epoch in range(start_epoch, opt.nepoch):
     epoch_loss = [0, 0]
@@ -160,6 +162,14 @@ for epoch in range(start_epoch, opt.nepoch):
     epoch_accuracy[1] /= float(num_tests)
     tensorboard_writer.add_scalars('Loss', {'train': epoch_loss[0], 'test': epoch_loss[1]}, epoch)
     tensorboard_writer.add_scalars('Accuracy', {'train': epoch_accuracy[0], 'test': epoch_accuracy[1]}, epoch)
+    for tag, value in regressor.named_parameters():
+        tag = tag.replace('.', '/')
+        tensorboard_writer.add_histogram(tag, value.data.cpu().numpy(), epoch)
+        if valud.grad is not None:
+            tensorboard_writer.add_histogram(tag + '/grad', value.grad.cpu().numpy(), epoch)
+
+# Close the tensor board writer
+tensorboard_writer.close()
 
 all_errors[error_def.ADDS_CODE] = []
 all_errors[error_def.TRANSLATION_CODE] = []
