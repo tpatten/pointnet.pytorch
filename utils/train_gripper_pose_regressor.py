@@ -165,7 +165,7 @@ for epoch in range(start_epoch, opt.nepoch):
     for tag, value in regressor.named_parameters():
         tag = tag.replace('.', '/')
         tensorboard_writer.add_histogram(tag, value.data.cpu().numpy(), epoch)
-        if valud.grad is not None:
+        if value.grad is not None:
             tensorboard_writer.add_histogram(tag + '/grad', value.grad.cpu().numpy(), epoch)
 
 # Close the tensor board writer

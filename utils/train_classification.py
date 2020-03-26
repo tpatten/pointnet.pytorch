@@ -26,7 +26,7 @@ parser.add_argument('--outf', type=str, default='cls', help='output folder')
 parser.add_argument('--model', type=str, default='', help='model path')
 parser.add_argument('--dataset', type=str, required=True, help="dataset path")
 parser.add_argument('--dataset_type', type=str, default='shapenet', help="dataset type shapenet|modelnet40")
-# parser.add_argument('--feature_transform', action='store_true', help="use feature transform")
+parser.add_argument('--feature_transform', action='store_true', help="use feature transform")
 
 opt = parser.parse_args()
 print(opt)
@@ -145,7 +145,7 @@ for epoch in range(start_epoch, opt.nepoch):
             num_tests += 1
 
     if epoch != 0:
-        torch.save(regressor.state_dict(), '%s/cls_model_%d.pth' % (opt.outf, epoch))
+        torch.save(classifier.state_dict(), '%s/cls_model_%d.pth' % (opt.outf, epoch))
 
     # Only keep every 10th
     if epoch > 0 and (epoch - 1) % 10 != 0:
@@ -161,7 +161,7 @@ for epoch in range(start_epoch, opt.nepoch):
     for tag, value in regressor.named_parameters():
         tag = tag.replace('.', '/')
         tensorboard_writer.add_histogram(tag, value.data.cpu().numpy(), epoch)
-        if valud.grad is not None:
+        if value.grad is not None:
             tensorboard_writer.add_histogram(tag + '/grad', value.grad.cpu().numpy(), epoch)
 
 total_correct = 0
