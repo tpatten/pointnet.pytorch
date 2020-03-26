@@ -6,6 +6,7 @@ import torch
 import torch.nn.parallel
 import torch.optim as optim
 import torch.utils.data
+from torch.utils.tensorboard import SummaryWriter
 from pointnet.dataset import ShapeNetDataset, ModelNetDataset
 from pointnet.model import PointNetCls, feature_transform_regularizer
 import torch.nn.functional as F
@@ -16,7 +17,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     '--batchSize', type=int, default=32, help='input batch size')
 parser.add_argument(
-    '--num_points', type=int, default=21, help='input batch size')  # 2500
+    '--num_points', type=int, default=2500, help='input batch size')
 parser.add_argument(
     '--workers', type=int, help='number of data loading workers', default=4)
 parser.add_argument(
@@ -85,8 +86,7 @@ try:
 except OSError:
     pass
 
-# classifier = PointNetCls(k=num_classes, feature_transform=opt.feature_transform)
-classifier = PointNetCls(k=num_classes, feature_transform=False)
+classifier = PointNetCls(k=num_classes, feature_transform=opt.feature_transform)
 
 start_epoch = 0
 if opt.model != '':
@@ -102,7 +102,12 @@ classifier.cuda()
 
 num_batch = len(dataset) / opt.batchSize
 
+tensorboard_writer = SummaryWriter('/home/tpatten/logs/' + str(opt.dataset_type))
+
 for epoch in range(start_epoch, opt.nepoch):
+    epoch_loss = [0, 0]
+    epoch_accuracy = [0, 0]
+    num_tests = 0
     scheduler.step()
     for i, data in enumerate(dataloader, 0):
         points, target = data
@@ -111,16 +116,17 @@ for epoch in range(start_epoch, opt.nepoch):
         points, target = points.cuda(), target.cuda()
         optimizer.zero_grad()
         classifier = classifier.train()
-        # pred, trans, trans_feat = classifier(points)
-        pred, _, _ = classifier(points)
+        pred, trans, trans_feat = classifier(points)
         loss = F.nll_loss(pred, target)
-        # if opt.feature_transform:
-        #     loss += feature_transform_regularizer(trans_feat) * 0.001
+        if opt.feature_transform:
+            loss += feature_transform_regularizer(trans_feat) * 0.001
         loss.backward()
         optimizer.step()
         pred_choice = pred.data.max(1)[1]
         correct = pred_choice.eq(target.data).cpu().sum()
         print('[%d: %d/%d] train loss: %f accuracy: %f' % (epoch, i, num_batch, loss.item(), correct.item() / float(opt.batchSize)))
+        epoch_loss[0] += loss.item()
+        epoch_accuracy[0] += correct.item() / float(points.size()[0])
 
         if i % 10 == 0:
             j, data = next(enumerate(testdataloader, 0))
@@ -134,8 +140,29 @@ for epoch in range(start_epoch, opt.nepoch):
             pred_choice = pred.data.max(1)[1]
             correct = pred_choice.eq(target.data).cpu().sum()
             print('[%d: %d/%d] %s loss: %f accuracy: %f' % (epoch, i, num_batch, blue('test'), loss.item(), correct.item()/float(opt.batchSize)))
+            epoch_loss[1] += loss.item()
+            epoch_accuracy[1] += correct.item() / float(points.size()[0])
+            num_tests += 1
 
-    torch.save(classifier.state_dict(), '%s/cls_model_%d.pth' % (opt.outf, epoch))
+    if epoch != 0:
+        torch.save(regressor.state_dict(), '%s/cls_model_%d.pth' % (opt.outf, epoch))
+
+    # Only keep every 10th
+    if epoch > 0 and (epoch - 1) % 10 != 0:
+        os.remove('%s/cls_model_%d.pth' % (opt.outf, epoch - 1))
+
+    # To tensorboard
+    epoch_loss[0] /= num_batch
+    epoch_accuracy[0] /= num_batch
+    epoch_loss[1] /= float(num_tests)
+    epoch_accuracy[1] /= float(num_tests)
+    tensorboard_writer.add_scalars('Loss', {'train': epoch_loss[0], 'test': epoch_loss[1]}, epoch)
+    tensorboard_writer.add_scalars('Accuracy', {'train': epoch_accuracy[0], 'test': epoch_accuracy[1]}, epoch)
+    for tag, value in regressor.named_parameters():
+        tag = tag.replace('.', '/')
+        tensorboard_writer.add_histogram(tag, value.data.cpu().numpy(), epoch)
+        if valud.grad is not None:
+            tensorboard_writer.add_histogram(tag + '/grad', value.grad.cpu().numpy(), epoch)
 
 total_correct = 0
 total_testset = 0
