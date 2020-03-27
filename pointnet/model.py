@@ -218,7 +218,7 @@ def feature_transform_regularizer(trans):
 class PointNetRegression(nn.Module):
     def __init__(self, k_out=3):
         super(PointNetRegression, self).__init__()
-        self.feat = PointNetfeat_custom(global_feat=True, feature_transform=False)
+        self.feat = PointNetfeat_custom(global_feat=True)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, k_out)

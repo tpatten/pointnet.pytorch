@@ -14,7 +14,7 @@ import error_def
 
 num_points = 21
 
-error_threshold = 0.25 * 0.232280153674483
+error_threshold = 0.1 * 0.232280153674483
 add_threshold = error_threshold
 adds_threshold = add_threshold
 translation_threshold = 0.05
