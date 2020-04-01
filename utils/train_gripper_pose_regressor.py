@@ -6,7 +6,7 @@ import torch.optim as optim
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 from pointnet.dataset import HO3DDataset
-from pointnet.model import PointNetRegression
+from pointnet.model import PointNetRegression, regression_loss
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
@@ -27,12 +27,16 @@ parser.add_argument(
 parser.add_argument(
     '--workers', type=int, help='number of data loading workers', default=4)
 parser.add_argument(
-    '--nepoch', type=int, default=50, help='number of epochs to train for')
+    '--nepoch', type=int, default=150, help='number of epochs to train for')
 parser.add_argument('--outf', type=str, default='gpr', help='output folder')
 parser.add_argument('--model', type=str, default='', help='model path')
 parser.add_argument('--dataset', type=str, required=True, help="dataset path")
 
 opt = parser.parse_args()
+opt.k_out = 9
+opt.dropout_p = 0.0
+opt.split_output = 3
+opt.split_only_last_layer = False
 print(opt)
 
 blue = lambda x: '\033[94m' + x + '\033[0m'
@@ -44,11 +48,15 @@ torch.manual_seed(opt.manualSeed)
 
 dataset = HO3DDataset(root=opt.dataset)
 
+get_split_target = False
+if opt.split_output > 0:
+    get_split_target = True
+
 test_dataset = HO3DDataset(
     root=opt.dataset,
     split='test',
-    data_augmentation=False)
-
+    data_augmentation=False,
+    split_output=get_split_target)
 
 dataloader = torch.utils.data.DataLoader(
     dataset,
@@ -72,7 +80,8 @@ try:
 except OSError:
     pass
 
-regressor = PointNetRegression(k_out=9)
+regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, split_output=opt.split_output,
+                               split_only_last_layer=opt.split_only_last_layer)
 
 start_epoch = 0
 if opt.model != '':
@@ -82,10 +91,10 @@ if opt.model != '':
     idx = filename.rfind('_')
     start_epoch = int(filename[idx + 1:]) + 1
 
-learning_rate = 0.001
+learning_rate = 0.01
 optimizer = optim.Adam(regressor.parameters(), lr=learning_rate, betas=(0.9, 0.999))  # Could add weight decay: weight_decay=?
 # Decays the learning rate of each parameter group by gamma every step_size in epochs
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)
 regressor.cuda()
 
 num_batch = len(dataset) / opt.batchSize
@@ -99,7 +108,8 @@ for epoch in range(start_epoch, opt.nepoch):
     epoch_loss = [0, 0]
     epoch_accuracy = [0, 0]
     num_tests = 0
-    scheduler.step()
+    if epoch > start_epoch:
+        scheduler.step()
     for i, data in enumerate(dataloader, 0):
         points, target, offset, dist = data
         points = points.transpose(2, 1)
@@ -107,7 +117,7 @@ for epoch in range(start_epoch, opt.nepoch):
         optimizer.zero_grad()
         regressor = regressor.train()
         pred = regressor(points)
-        loss = F.mse_loss(pred, target)  # Do I need to split each component? How about symmetry?
+        loss = regression_loss(pred, target, opt.split_output)
         loss.backward()
         optimizer.step()
         targ_np = target.data.cpu().numpy()
@@ -131,7 +141,7 @@ for epoch in range(start_epoch, opt.nepoch):
             points, target = points.cuda(), target.cuda()
             regressor = regressor.eval()
             pred = regressor(points)
-            loss_test = F.mse_loss(pred, target)
+            loss_test = regression_loss(pred, target, opt.split_output)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
             offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))

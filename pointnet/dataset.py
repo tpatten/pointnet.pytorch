@@ -210,7 +210,8 @@ class HO3DDataset(data.Dataset):
                  root,
                  split='train',
                  gripper_xyz='hand_open.xyz',
-                 data_augmentation=True):
+                 data_augmentation=True,
+                 split_output=False):
         self.root = root
         if split == 'test':
             splitfile = os.path.join(self.root, 'grasp_test.txt')
@@ -219,6 +220,7 @@ class HO3DDataset(data.Dataset):
             splitfile = os.path.join(self.root, 'grasp_train.txt')
             split_root_name = 'train'
         self.data_augmentation = data_augmentation
+        self.split_output = split_output
 
         # Get the gripper model
         self.base_pcd = np.loadtxt(gripper_xyz)
@@ -239,7 +241,6 @@ class HO3DDataset(data.Dataset):
         fn = self.datapath[index]
 
         # Get the hand joints
-        pickle_data = None
         with open(fn[0], 'rb') as f:
             try:
                 pickle_data = pickle.load(f, encoding='latin1')
@@ -248,7 +249,6 @@ class HO3DDataset(data.Dataset):
         point_set = pickle_data['handJoints3D']
 
         # Get the gripper pose
-        pickle_data = None
         with open(fn[1], 'rb') as f:
             try:
                 pickle_data = pickle.load(f, encoding='latin1')
@@ -294,7 +294,12 @@ class HO3DDataset(data.Dataset):
 
         # Create tensors and return
         point_set = torch.from_numpy(point_set.astype(np.float32))
-        target = torch.from_numpy(target.astype(np.float32))
+        if self.split_output:
+            target = [torch.from_numpy(target[0:3].astype(np.float32)),
+                      torch.from_numpy(target[3:6].astype(np.float32)),
+                      torch.from_numpy(target[6:9].astype(np.float32))]
+        else:
+            target = torch.from_numpy(target.astype(np.float32))
 
         return point_set, target, offset, dist
 
