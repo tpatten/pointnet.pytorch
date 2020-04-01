@@ -240,9 +240,23 @@ class PointNetRegression(nn.Module):
         return x
 
 
-def regression_loss(prediction, target, independent_components=False, reduction='mean'):
+def regression_loss(prediction, target, independent_components=False, lc_weights=[1./3., 1./3., 1./3.],
+                    closing_symmetry=True, reduction='mean'):
     if independent_components:
-        loss = F.mse_loss(prediction, target, reduction=reduction)
+        loss_translation = F.mse_loss(prediction[:, 0:3], target[:, 0:3], reduction='sum')
+        loss_approach = F.mse_loss(prediction[:, 3:6], target[:, 3:6], reduction='sum')
+        loss_closing = 0
+        if not closing_symmetry:
+            loss_closing = F.mse_loss(prediction[i, 6:9], target[i, 6:9], reduction='sum')
+        else:
+            for i in range(prediction.size()[0]):
+                loss_closing += min(F.mse_loss(prediction[i, 6:9], target[i, 6:9], reduction='sum'),
+                                    F.mse_loss(prediction[i, 6:9], -target[i, 6:9], reduction='sum'))
+        loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_approach + lc_weights[0] * loss_closing
+        denom = 3.0
+        if reduction == 'mean':
+            denom *= prediction.size()[0]
+        loss = loss / denom
     else:
         loss = F.mse_loss(prediction, target, reduction=reduction)
 

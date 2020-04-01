@@ -36,6 +36,9 @@ opt = parser.parse_args()
 opt.k_out = 9
 opt.dropout_p = 0.0
 opt.split_loss = True
+opt.closing_symmetry = True
+opt.lc_weights = [1./3., 1./3., 1./3.]
+opt.loss_reduction = 'mean'  # 'mean' or 'sum'
 print(opt)
 
 blue = lambda x: '\033[94m' + x + '\033[0m'
@@ -44,10 +47,6 @@ opt.manualSeed = random.randint(1, 10000)  # fix seed
 print("Random Seed: ", opt.manualSeed)
 random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
-
-get_split_target = False
-if opt.split_output > 0:
-    get_split_target = True
 
 dataset = HO3DDataset(root=opt.dataset, data_augmentation=False)
 
@@ -114,7 +113,8 @@ for epoch in range(start_epoch, opt.nepoch):
         optimizer.zero_grad()
         regressor = regressor.train()
         pred = regressor(points)
-        loss = regression_loss(pred, target, opt.split_loss)
+        loss = regression_loss(pred, target, independent_components=opt.split_loss, lc_weights=opt.lc_weights,
+                               closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
         loss.backward()
         optimizer.step()
         targ_np = target.data.cpu().numpy()
@@ -138,7 +138,8 @@ for epoch in range(start_epoch, opt.nepoch):
             points, target = points.cuda(), target.cuda()
             regressor = regressor.eval()
             pred = regressor(points)
-            loss_test = regression_loss(pred, target, opt.split_loss)
+            loss_test = regression_loss(pred, target, independent_components=opt.split_loss, lc_weights=opt.lc_weights,
+                                        closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
             offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
