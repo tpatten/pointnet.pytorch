@@ -216,23 +216,13 @@ def feature_transform_regularizer(trans):
 
 
 class PointNetRegression(nn.Module):
-    def __init__(self, k_out=3, dropout_p=0.0, split_output=0, split_only_last_layer=False):
+    def __init__(self, k_out=3, dropout_p=0.0):
         super(PointNetRegression, self).__init__()
         self.dropout_p = dropout_p
-        self.split_output = split_output
-        self.split_only_last_layer = False
-        if self.split_output > 0 and split_only_last_layer:
-            self.split_only_last_layer = True
         self.feat = PointNetfeat_custom(global_feat=True)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
-        if split_output > 0:
-            if k_out % split_output == 0:
-                self.fc3 = nn.Linear(256, int(k_out / split_output))
-            else:
-                raise ValueError('k_out ({}) is not divisible by split_output ({}): '.format(k_out, split_output))
-        else:
-            self.fc3 = nn.Linear(256, k_out)
+        self.fc3 = nn.Linear(256, k_out)
         if self.dropout_p > 0.0:
             self.dropout = nn.Dropout(p=self.dropout_p)
         self.bn1 = nn.BatchNorm1d(512)
@@ -241,45 +231,20 @@ class PointNetRegression(nn.Module):
 
     def forward(self, x):
         x, _, _ = self.feat(x)
-
-        if self.split_output > 0:
-            outputs = []
-            if self.split_only_last_layer:
-                x = F.relu(self.bn1(self.fc1(x)))
-                if self.dropout_p > 0.0:
-                    x = F.relu(self.bn2(self.dropout(self.fc2(x))))
-                else:
-                    x = F.relu(self.bn2(self.fc2(x)))
-                for _ in range(self.split_output):
-                    x_o = self.fc3(x)
-                    outputs.append(x_o)
-            else:
-                for _ in range(self.split_output):
-                    x_o = F.relu(self.bn1(self.fc1(x)))
-                    if self.dropout_p > 0.0:
-                        x_o = F.relu(self.bn2(self.dropout(self.fc2(x_o))))
-                    else:
-                        x_o = F.relu(self.bn2(self.fc2(x_o)))
-                    x_o = self.fc3(x_o)
-                    outputs.append(x_o)
-            return outputs
+        x = F.relu(self.bn1(self.fc1(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn2(self.dropout(self.fc2(x))))
         else:
-            x = F.relu(self.bn1(self.fc1(x)))
-            if self.dropout_p > 0.0:
-                x = F.relu(self.bn2(self.dropout(self.fc2(x))))
-            else:
-                x = F.relu(self.bn2(self.fc2(x)))
-            x = self.fc3(x)
-            return x
+            x = F.relu(self.bn2(self.fc2(x)))
+        x = self.fc3(x)
+        return x
 
 
-def regression_loss(prediction, target, split_output=0):
-    if split_output > 0:
-        loss = 0
-        for p, t in zip(prediction, target):
-            loss += F.mse_loss(p.cuda(), t.cuda())
+def regression_loss(prediction, target, independent_components=False, reduction='mean'):
+    if independent_components:
+        loss = F.mse_loss(prediction, target, reduction=reduction)
     else:
-        loss = F.mse_loss(pred, target.cuda())
+        loss = F.mse_loss(prediction, target, reduction=reduction)
 
     return loss
 

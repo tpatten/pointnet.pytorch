@@ -35,8 +35,7 @@ parser.add_argument('--dataset', type=str, required=True, help="dataset path")
 opt = parser.parse_args()
 opt.k_out = 9
 opt.dropout_p = 0.0
-opt.split_output = 3
-opt.split_only_last_layer = False
+opt.split_loss = True
 print(opt)
 
 blue = lambda x: '\033[94m' + x + '\033[0m'
@@ -50,13 +49,12 @@ get_split_target = False
 if opt.split_output > 0:
     get_split_target = True
 
-dataset = HO3DDataset(root=opt.dataset, data_augmentation=False, split_output=get_split_target)
+dataset = HO3DDataset(root=opt.dataset, data_augmentation=False)
 
 test_dataset = HO3DDataset(
     root=opt.dataset,
     split='test',
-    data_augmentation=False,
-    split_output=get_split_target)
+    data_augmentation=False)
 
 dataloader = torch.utils.data.DataLoader(
     dataset,
@@ -80,8 +78,7 @@ try:
 except OSError:
     pass
 
-regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, split_output=opt.split_output,
-                               split_only_last_layer=opt.split_only_last_layer)
+regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p)
 
 start_epoch = 0
 if opt.model != '':
@@ -113,11 +110,11 @@ for epoch in range(start_epoch, opt.nepoch):
     for i, data in enumerate(dataloader, 0):
         points, target, offset, dist = data
         points = points.transpose(2, 1)
-        # points, target = points.cuda(), target.cuda()
+        points, target = points.cuda(), target.cuda()
         optimizer.zero_grad()
         regressor = regressor.train()
-        pred = regressor(points.cuda())
-        loss = regression_loss(pred, target, opt.split_output)
+        pred = regressor(points)
+        loss = regression_loss(pred, target, opt.split_loss)
         loss.backward()
         optimizer.step()
         targ_np = target.data.cpu().numpy()
@@ -138,10 +135,10 @@ for epoch in range(start_epoch, opt.nepoch):
             j, data = next(enumerate(testdataloader, 0))
             points, target, offset, dist = data
             points = points.transpose(2, 1)
-            # points, target = points.cuda(), target.cuda()
+            points, target = points.cuda(), target.cuda()
             regressor = regressor.eval()
-            pred = regressor(points.cuda())
-            loss_test = regression_loss(pred, target, opt.split_output)
+            pred = regressor(points)
+            loss_test = regression_loss(pred, target, opt.split_loss)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
             offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
@@ -191,9 +188,9 @@ all_errors[error_def.ROTATION_Z_CODE] = []
 for i, data in tqdm(enumerate(testdataloader, 0)):
     points, target, offset, dist = data
     points = points.transpose(2, 1)
-    # points, target = points.cuda(), target.cuda()
+    points, target = points.cuda(), target.cuda()
     regressor = regressor.eval()
-    pred = regressor(points.cuda())
+    pred = regressor(points)
     targ_np = target.data.cpu().numpy()
     pred_np = pred.data.cpu().numpy()
     offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
