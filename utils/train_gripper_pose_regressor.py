@@ -46,11 +46,11 @@ print("Random Seed: ", opt.manualSeed)
 random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
 
-dataset = HO3DDataset(root=opt.dataset)
-
 get_split_target = False
 if opt.split_output > 0:
     get_split_target = True
+
+dataset = HO3DDataset(root=opt.dataset, data_augmentation=False, split_output=get_split_target)
 
 test_dataset = HO3DDataset(
     root=opt.dataset,
@@ -113,10 +113,10 @@ for epoch in range(start_epoch, opt.nepoch):
     for i, data in enumerate(dataloader, 0):
         points, target, offset, dist = data
         points = points.transpose(2, 1)
-        points, target = points.cuda(), target.cuda()
+        # points, target = points.cuda(), target.cuda()
         optimizer.zero_grad()
         regressor = regressor.train()
-        pred = regressor(points)
+        pred = regressor(points.cuda())
         loss = regression_loss(pred, target, opt.split_output)
         loss.backward()
         optimizer.step()
@@ -138,9 +138,9 @@ for epoch in range(start_epoch, opt.nepoch):
             j, data = next(enumerate(testdataloader, 0))
             points, target, offset, dist = data
             points = points.transpose(2, 1)
-            points, target = points.cuda(), target.cuda()
+            # points, target = points.cuda(), target.cuda()
             regressor = regressor.eval()
-            pred = regressor(points)
+            pred = regressor(points.cuda())
             loss_test = regression_loss(pred, target, opt.split_output)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
@@ -191,9 +191,9 @@ all_errors[error_def.ROTATION_Z_CODE] = []
 for i, data in tqdm(enumerate(testdataloader, 0)):
     points, target, offset, dist = data
     points = points.transpose(2, 1)
-    points, target = points.cuda(), target.cuda()
+    # points, target = points.cuda(), target.cuda()
     regressor = regressor.eval()
-    pred = regressor(points)
+    pred = regressor(points.cuda())
     targ_np = target.data.cpu().numpy()
     pred_np = pred.data.cpu().numpy()
     offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))

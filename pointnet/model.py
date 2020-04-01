@@ -228,7 +228,7 @@ class PointNetRegression(nn.Module):
         self.fc2 = nn.Linear(512, 256)
         if split_output > 0:
             if k_out % split_output == 0:
-                self.fc3 = nn.Linear(256, k_out / split_output)
+                self.fc3 = nn.Linear(256, int(k_out / split_output))
             else:
                 raise ValueError('k_out ({}) is not divisible by split_output ({}): '.format(k_out, split_output))
         else:
@@ -250,11 +250,11 @@ class PointNetRegression(nn.Module):
                     x = F.relu(self.bn2(self.dropout(self.fc2(x))))
                 else:
                     x = F.relu(self.bn2(self.fc2(x)))
-                for _ in range(split_output):
+                for _ in range(self.split_output):
                     x_o = self.fc3(x)
                     outputs.append(x_o)
             else:
-                for _ in range(split_output):
+                for _ in range(self.split_output):
                     x_o = F.relu(self.bn1(self.fc1(x)))
                     if self.dropout_p > 0.0:
                         x_o = F.relu(self.bn2(self.dropout(self.fc2(x_o))))
@@ -277,11 +277,12 @@ def regression_loss(prediction, target, split_output=0):
     if split_output > 0:
         loss = 0
         for p, t in zip(prediction, target):
-            loss += F.mse_loss(p, t)
+            loss += F.mse_loss(p.cuda(), t.cuda())
     else:
-        loss = F.mse_loss(pred, target)
+        loss = F.mse_loss(pred, target.cuda())
 
     return loss
+
 
 if __name__ == '__main__':
     sim_data = Variable(torch.rand(32, 3, 2500))
