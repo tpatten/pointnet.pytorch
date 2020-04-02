@@ -42,6 +42,7 @@ opt.data_augmentation = True
 opt.data_subset = 'ALL'  # ABF BB GPMF GSF MDF SHSU
 opt.randomly_flip_closing_angle = False
 opt.center_to_wrist_joint = False
+opt.model_loss = False
 print(opt)
 
 blue = lambda x: '\033[94m' + x + '\033[0m'
@@ -77,10 +78,14 @@ testdataloader = torch.utils.data.DataLoader(
 
 print(len(dataset), len(test_dataset))
 
-gripper_filename = 'hand_open.xyz'
+gripper_filename = 'hand_open_symmetric.xyz'
 gripper_pts = np.loadtxt(gripper_filename)
 
 output_dir = opt.data_subset + '_batch' + str(opt.batchSize)
+if opt.model_loss:
+    output_dir += '_modelLoss'
+else:
+    output_dir += '_regLoss'
 if opt.dropout_p > 0.0:
     output_dir = output_dir + '_dropout' + str(opt.dropout_p).replace('.', '-')
 if opt.data_augmentation:
@@ -88,6 +93,8 @@ if opt.data_augmentation:
 if opt.split_loss:
     output_dir += '_splitloss'
 if opt.split_loss and opt.closing_symmetry:
+    output_dir += '_symmetry'
+elif opt.model_loss and opt.closing_symmetry:
     output_dir += '_symmetry'
 if opt.randomly_flip_closing_angle:
     output_dir += '_rflipCA'
@@ -130,30 +137,45 @@ for epoch in range(start_epoch, opt.nepoch):
     if epoch > start_epoch:
         scheduler.step()
     for i, data in enumerate(dataloader, 0):
+        # Load the data
         points, target, offset, dist = data
         points = points.transpose(2, 1)
+
+        # Put onto GPU
         points, target = points.cuda(), target.cuda()
+
+        # Call train and predict
         optimizer.zero_grad()
         regressor = regressor.train()
         pred = regressor(points)
-        loss = regression_loss(pred, target, independent_components=opt.split_loss, lc_weights=opt.lc_weights,
-                               closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
+
+        # Compute loss value
+        if opt.model_loss:
+            loss = model_loss(pred, target, offset, dist, gripper_pts, closing_symmetry=opt.closing_symmetry)
+        else:
+            loss = regression_loss(pred, target, independent_components=opt.split_loss, lc_weights=opt.lc_weights,
+                                   closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
+
+        # Backprop
         loss.backward()
         optimizer.step()
+
+        # Compute the accuracy
         targ_np = target.data.cpu().numpy()
         pred_np = pred.data.cpu().numpy()
         offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
         dist_np = dist.data.cpu().numpy().reshape((pred_np.shape[0], 1))
-
         targ_tfs = error_def.to_transform_batch(targ_np, offset_np, dist_np)
         pred_tfs = error_def.to_transform_batch(pred_np, offset_np, dist_np)
         errs = error_def.get_all_errors_batch(targ_tfs, pred_tfs, gripper_pts, all_errors)
         evals = error_def.eval_grasps(errs, error_threshold, None, None)
 
+        # Print to terminal
         print('[%d: %d/%d] train loss: %f accuracy: %f' % (epoch, i, num_batch, loss.item(), evals[0]))
         epoch_loss[0] += loss.item()
         epoch_accuracy[0] += evals[0]
 
+        # Check accuracy on test set (validation)
         if i % 10 == 0:
             j, data = next(enumerate(testdataloader, 0))
             points, target, offset, dist = data
@@ -179,6 +201,7 @@ for epoch in range(start_epoch, opt.nepoch):
             epoch_accuracy[1] += evals_test[0]
             num_tests += 1
 
+    # Save the checkpoint
     if epoch != 0:
         torch.save(regressor.state_dict(), '%s/gpr_model_%d.pth' % (output_dir, epoch))
 
