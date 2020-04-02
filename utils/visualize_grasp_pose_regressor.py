@@ -62,10 +62,9 @@ def visualize(meta_filename, grasp_pose_filename, models_path):
     gripper_transform = pickle_data.reshape(4, 4)
 
     # Load the gripper cloud
-    gripper_xyz = 'hand_open.xyz'
-    gripper_xyz = np.loadtxt(gripper_xyz)
     gripper_pcd = o3d.geometry.PointCloud()
-    gripper_pcd.points = o3d.utility.Vector3dVector(gripper_xyz)
+    gripper_pcd.points = o3d.utility.Vector3dVector(np.loadtxt('hand_open_symmetric.xyz'))
+    # gripper_pcd = o3d.io.read_point_cloud('hand_open_symmetric.ply')
     gripper_pcd_gt = copy.deepcopy(gripper_pcd)
     gripper_pcd_predicted = copy.deepcopy(gripper_pcd)
 

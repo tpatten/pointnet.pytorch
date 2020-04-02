@@ -10,6 +10,7 @@ import json
 from plyfile import PlyData, PlyElement
 import pickle
 import copy
+import random
 
 
 LEFT_TIP_IN_CLOUD = 3221
@@ -210,15 +211,15 @@ class HO3DDataset(data.Dataset):
                  root,
                  split='train',
                  gripper_xyz='hand_open.xyz',
-                 data_augmentation=True):
+                 data_augmentation=True,
+                 subset_name='ALL',
+                 randomly_flip_closing_angle=False,
+                 center_to_wrist_joint=False):
         self.root = root
-        if split == 'test':
-            splitfile = os.path.join(self.root, 'grasp_test.txt')
-            split_root_name = 'train'
-        else:
-            splitfile = os.path.join(self.root, 'grasp_train.txt')
-            split_root_name = 'train'
+        splitfile, split_root_name = self.get_HO3D_split_file(split, subset_name)
         self.data_augmentation = data_augmentation
+        self.randomly_flip_closing_angle = randomly_flip_closing_angle
+        self.center_to_wrist_joint = center_to_wrist_joint
 
         # Get the gripper model
         self.base_pcd = np.loadtxt(gripper_xyz)
@@ -228,6 +229,10 @@ class HO3DDataset(data.Dataset):
         filelist = [line[:-1] for line in f]
         f.close()
 
+        # Shuffle the files
+        filelist = random.shuffle(filelist)
+
+        # Create the data path object
         self.datapath = []
         for file in filelist:
             subject, seq = file.split('/')
@@ -265,6 +270,8 @@ class HO3DDataset(data.Dataset):
         approach_vec /= np.linalg.norm(approach_vec)
         close_vec = right_tip - left_tip
         close_vec /= np.linalg.norm(close_vec)
+        if self.randomly_flip_closing_angle and np.random.random_sample() > 0.5:
+            close_vec *= -1
 
         # Create the target
         target = np.zeros((1, 9)).flatten()
@@ -272,23 +279,27 @@ class HO3DDataset(data.Dataset):
         target[3:6] = approach_vec
         target[6:9] = close_vec
 
-        if self.data_augmentation:
-            theta = np.random.uniform(-0.1 * np.pi, 0.1 * np.pi)
-            rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-            point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
-            point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
-
         # center the joints
-        offset = np.expand_dims(np.mean(point_set, axis=0), 0)
+        offset = np.zeros((3, 1))
+        if self.center_to_wrist_joint:
+            offset[:] = point_set[0, :]
+        else:
+            offset = np.expand_dims(np.mean(point_set, axis=0), 0)
         point_set = point_set - offset
         # scale the joints
-        # dist = 2.0 * np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)  # Multiply by 2 so that grasp pose is in [0, 1]
         dist = np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)
         point_set = point_set / dist
 
         # center and scale the grasp pose
         target[0:3] -= offset.flatten()
         target[0:3] /= dist
+
+        # Apply augmentation
+        if self.data_augmentation:
+            theta = np.random.uniform(-0.1 * np.pi, 0.1 * np.pi)
+            rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+            point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
+            point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
 
         # Create tensors and return
         point_set = torch.from_numpy(point_set.astype(np.float32))
@@ -298,6 +309,24 @@ class HO3DDataset(data.Dataset):
 
     def __len__(self):
         return len(self.datapath)
+
+    def get_split_file(self, split, subset_name):
+        subset_name_up = subset_name.upper()
+        if subset_name_up == 'SHSU':
+            subset_name_up = 'ShSu'
+
+        suffix = 'grasp_train.txt'
+        if split == 'test':
+            suffix = 'grasp_test.txt'
+
+        if subset_name_up == 'ALL':
+            splitfile = os.path.join(self.root, 'splits', suffix)
+        else:
+            splitfile = os.path.join(self.root, 'splits', subset_name_up + '_' + suffix)
+
+        split_root_name = 'train'
+
+        return splitfile, split_root_name
 
 
 if __name__ == '__main__':

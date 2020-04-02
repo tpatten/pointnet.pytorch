@@ -247,7 +247,7 @@ def regression_loss(prediction, target, independent_components=False, lc_weights
         loss_approach = F.mse_loss(prediction[:, 3:6], target[:, 3:6], reduction='sum')
         loss_closing = 0
         if not closing_symmetry:
-            loss_closing = F.mse_loss(prediction[i, 6:9], target[i, 6:9], reduction='sum')
+            loss_closing = F.mse_loss(prediction[:, 6:9], target[:, 6:9], reduction='sum')
         else:
             for i in range(prediction.size()[0]):
                 loss_closing += min(F.mse_loss(prediction[i, 6:9], target[i, 6:9], reduction='sum'),

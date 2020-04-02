@@ -49,15 +49,9 @@ Things to try:
 2) Reduce batch size (large batch size can reduce the generalization)
 3) Try less augmentation (augmentation can over regularise)
 4) Try drop outs (but be careful, it might cause it to underfit)
-5) Check the preprocessing of pre-trained model
 6) Check the loss function
-7) Check f gradient updates are disabled for any layers
 8) Increase network size (more layers, more hidden units in fully connected layers)
 9) Try different hyperparameters
 10) Reduce regularisation by removing dropout, batch norm, etc (try to overfit first, then address overfitting)
-11) Monitor the activations, weights, biases and updated of each layer (use tensorboard for this)
-12) Check for exploding or vanishing gradients
-13) Increase/decrease learning rate (multiply by 0.1 or 10 - low rate means it converges slowly, high rate means decreases quickly but makes it hard to find a godo solution)
-14) Make sure not getting NaNs
 
 For weights, these histograms should have an approximately Gaussian (normal) distribution, after some time. For biases, these histograms will generally start at 0, and will usually end up being approximately Gaussian (One exception to this is for LSTM). Keep an eye out for parameters that are diverging to +/- infinity. Keep an eye out for biases that become very large. This can sometimes occur in the output layer for classification if the distribution of classes is very imbalanced.

@@ -27,8 +27,7 @@ parser.add_argument(
 parser.add_argument(
     '--workers', type=int, help='number of data loading workers', default=4)
 parser.add_argument(
-    '--nepoch', type=int, default=150, help='number of epochs to train for')
-parser.add_argument('--outf', type=str, default='gpr', help='output folder')
+    '--nepoch', type=int, default=60, help='number of epochs to train for')
 parser.add_argument('--model', type=str, default='', help='model path')
 parser.add_argument('--dataset', type=str, required=True, help="dataset path")
 
@@ -39,6 +38,10 @@ opt.split_loss = True
 opt.closing_symmetry = True
 opt.lc_weights = [1./3., 1./3., 1./3.]
 opt.loss_reduction = 'mean'  # 'mean' or 'sum'
+opt.data_augmentation = True
+opt.data_subset = 'ALL'  # ABF BB GPMF GSF MDF SHSU
+opt.randomly_flip_closing_angle = False
+opt.center_to_wrist_joint = False
 print(opt)
 
 blue = lambda x: '\033[94m' + x + '\033[0m'
@@ -48,12 +51,17 @@ print("Random Seed: ", opt.manualSeed)
 random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
 
-dataset = HO3DDataset(root=opt.dataset, data_augmentation=False)
+dataset = HO3DDataset(root=opt.dataset, data_augmentation=opt.data_augmentation, subset_name=opt.data_subset,
+                      randomly_flip_closing_angle=opt.randomly_flip_closing_angle,
+                      center_to_wrist_joint=opt.center_to_wrist_joint)
 
 test_dataset = HO3DDataset(
     root=opt.dataset,
     split='test',
-    data_augmentation=False)
+    data_augmentation=False,
+    subset_name=opt.data_subset,
+    randomly_flip_closing_angle=opt.randomly_flip_closing_angle,
+    center_to_wrist_joint=opt.center_to_wrist_joint)
 
 dataloader = torch.utils.data.DataLoader(
     dataset,
@@ -72,8 +80,22 @@ print(len(dataset), len(test_dataset))
 gripper_filename = 'hand_open.xyz'
 gripper_pts = np.loadtxt(gripper_filename)
 
+output_dir = opt.data_subset + '_batch' + str(opt.batchSize)
+if opt.dropout_p > 0.0:
+    output_dir = output_dir + '_dropout' + str(opt.dropout_p).replace('.', '-')
+if opt.data_augmentation:
+    output_dir += '_augmentation'
+if opt.split_loss:
+    output_dir += '_splitloss'
+if opt.split_loss and opt.closing_symmetry:
+    output_dir += '_symmetry'
+if opt.randomly_flip_closing_angle:
+    output_dir += '_rflipCA'
+if opt.center_to_wrist_joint:
+    output_dir += '_wristCentered'
+
 try:
-    os.makedirs(opt.outf)
+    os.makedirs(output_dir)
 except OSError:
     pass
 
@@ -87,7 +109,8 @@ if opt.model != '':
     idx = filename.rfind('_')
     start_epoch = int(filename[idx + 1:]) + 1
 
-learning_rate = 0.01
+# Ge starts with learning rate 0.001, then divides by 10 after 50 epochs, trains in total 60 epochs
+learning_rate = 0.001
 optimizer = optim.Adam(regressor.parameters(), lr=learning_rate, betas=(0.9, 0.999))  # Could add weight decay: weight_decay=?
 # Decays the learning rate of each parameter group by gamma every step_size in epochs
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)
@@ -98,7 +121,7 @@ num_batch = len(dataset) / opt.batchSize
 all_errors = {}
 all_errors[error_def.ADD_CODE] = []
 
-tensorboard_writer = SummaryWriter('/home/tpatten/logs/lr' + str(learning_rate).replace('.', '_'))
+tensorboard_writer = SummaryWriter('/home/tpatten/logs/' + output_dir)
 
 for epoch in range(start_epoch, opt.nepoch):
     epoch_loss = [0, 0]
@@ -157,11 +180,11 @@ for epoch in range(start_epoch, opt.nepoch):
             num_tests += 1
 
     if epoch != 0:
-        torch.save(regressor.state_dict(), '%s/gpr_model_%d.pth' % (opt.outf, epoch))
+        torch.save(regressor.state_dict(), '%s/gpr_model_%d.pth' % (output_dir, epoch))
 
     # Only keep every 10th
     if epoch > 0 and (epoch - 1) % 10 != 0:
-        os.remove('%s/gpr_model_%d.pth' % (opt.outf, epoch - 1))
+        os.remove('%s/gpr_model_%d.pth' % (output_dir, epoch - 1))
 
     # To tensorboard
     epoch_loss[0] /= num_batch
