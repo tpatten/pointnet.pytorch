@@ -216,7 +216,7 @@ class HO3DDataset(data.Dataset):
                  randomly_flip_closing_angle=False,
                  center_to_wrist_joint=False):
         self.root = root
-        splitfile, split_root_name = self.get_HO3D_split_file(split, subset_name)
+        splitfile, split_root_name = self.get_split_file(split, subset_name)
         self.data_augmentation = data_augmentation
         self.randomly_flip_closing_angle = randomly_flip_closing_angle
         self.center_to_wrist_joint = center_to_wrist_joint
@@ -230,8 +230,7 @@ class HO3DDataset(data.Dataset):
         f.close()
 
         # Shuffle the files
-        filelist = random.shuffle(filelist)
-        print(filelist)
+        random.shuffle(filelist)
 
         # Create the data path object
         self.datapath = []
@@ -281,11 +280,13 @@ class HO3DDataset(data.Dataset):
         target[6:9] = close_vec
 
         # center the joints
-        offset = np.zeros((3, 1))
+        offset = np.zeros((1, 3))
         if self.center_to_wrist_joint:
             offset[:] = point_set[0, :]
         else:
             offset = np.expand_dims(np.mean(point_set, axis=0), 0)
+            # [[-0.16110489  0.06607138 -0.65117906]]
+            # (1, 3)
         point_set = point_set - offset
         # scale the joints
         dist = np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)

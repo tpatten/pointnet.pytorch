@@ -6,7 +6,7 @@ import torch.optim as optim
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 from pointnet.dataset import HO3DDataset
-from pointnet.model import PointNetRegression, regression_loss
+from pointnet.model import PointNetRegression, regression_loss, model_loss
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
@@ -76,7 +76,7 @@ testdataloader = torch.utils.data.DataLoader(
         shuffle=True,
         num_workers=int(opt.workers))
 
-print(len(dataset), len(test_dataset))
+print('Size of train: {}\nSize of test: {}'. format(len(dataset), len(test_dataset)))
 
 gripper_filename = 'hand_open_symmetric.xyz'
 gripper_pts = np.loadtxt(gripper_filename)
@@ -102,10 +102,10 @@ if opt.center_to_wrist_joint:
     output_dir += '_wristCentered'
 print('Output directory\n{}'.format(output_dir))
 
-#try:
-#    os.makedirs(output_dir)
-#except OSError:
-#    pass
+try:
+    os.makedirs(output_dir)
+except OSError:
+    pass
 
 regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p)
 
@@ -117,11 +117,11 @@ if opt.model != '':
     idx = filename.rfind('_')
     start_epoch = int(filename[idx + 1:]) + 1
 
-# Ge starts with learning rate 0.001, then divides by 10 after 50 epochs, trains in total 60 epochs
 learning_rate = 0.001
-optimizer = optim.Adam(regressor.parameters(), lr=learning_rate, betas=(0.9, 0.999))  # Could add weight decay: weight_decay=?
-# Decays the learning rate of each parameter group by gamma every step_size in epochs
+optimizer = optim.Adam(regressor.parameters(), lr=learning_rate, betas=(0.9, 0.999))
+# Could add weight decay: weight_decay=?
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)
+# Decays the learning rate of each parameter group by gamma every step_size in epochs
 regressor.cuda()
 
 num_batch = len(dataset) / opt.batchSize
@@ -129,7 +129,7 @@ num_batch = len(dataset) / opt.batchSize
 all_errors = {}
 all_errors[error_def.ADD_CODE] = []
 
-#tensorboard_writer = SummaryWriter('/home/tpatten/logs/' + output_dir)
+tensorboard_writer = SummaryWriter('/home/tpatten/logs/' + output_dir)
 
 for epoch in range(start_epoch, opt.nepoch):
     epoch_loss = [0, 0]
@@ -175,7 +175,6 @@ for epoch in range(start_epoch, opt.nepoch):
         print('[%d: %d/%d] train loss: %f accuracy: %f' % (epoch, i, num_batch, loss.item(), evals[0]))
         epoch_loss[0] += loss.item()
         epoch_accuracy[0] += evals[0]
-        sys.exit(0)
 
         # Check accuracy on test set (validation)
         if i % 10 == 0:
@@ -216,13 +215,17 @@ for epoch in range(start_epoch, opt.nepoch):
     epoch_accuracy[0] /= num_batch
     epoch_loss[1] /= float(num_tests)
     epoch_accuracy[1] /= float(num_tests)
-    tensorboard_writer.add_scalars('Loss', {'train': epoch_loss[0], 'test': epoch_loss[1]}, epoch)
-    tensorboard_writer.add_scalars('Accuracy', {'train': epoch_accuracy[0], 'test': epoch_accuracy[1]}, epoch)
-    for tag, value in regressor.named_parameters():
-        tag = tag.replace('.', '/')
-        tensorboard_writer.add_histogram(tag, value.data.cpu().numpy(), epoch)
-        if value.grad is not None:
-            tensorboard_writer.add_histogram(tag + '/grad', value.grad.cpu().numpy(), epoch)
+    tensorboard_writer.add_scalar('Loss/train', epoch_loss[0], epoch)
+    tensorboard_writer.add_scalar('Loss/test', epoch_loss[1], epoch)
+    tensorboard_writer.add_scalar('Accuracy/train', epoch_accuracy[0], epoch)
+    tensorboard_writer.add_scalar('Accuracy/test', epoch_accuracy[1], epoch)
+    #tensorboard_writer.add_scalars('Loss', {'train': epoch_loss[0], 'test': epoch_loss[1]}, epoch)
+    #tensorboard_writer.add_scalars('Accuracy', {'train': epoch_accuracy[0], 'test': epoch_accuracy[1]}, epoch)
+    #for tag, value in regressor.named_parameters():
+    #    tag = tag.replace('.', '/')
+    #    tensorboard_writer.add_histogram(tag, value.data.cpu().numpy(), epoch)
+    #    if value.grad is not None:
+    #        tensorboard_writer.add_histogram(tag + '/grad', value.grad.cpu().numpy(), epoch)
 
 # Close the tensor board writer
 tensorboard_writer.close()

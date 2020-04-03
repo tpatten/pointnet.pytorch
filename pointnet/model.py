@@ -6,7 +6,7 @@ import torch.utils.data
 from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F
-from utils.error_def import to_transform_batch, add_error, add_error_symmetric
+import utils.error_def as error_def
 
 
 class STN3d(nn.Module):
@@ -270,15 +270,15 @@ def model_loss(prediction, target, offset, dist, points, closing_symmetry=True):
     offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
     dist_np = dist.data.cpu().numpy().reshape((pred_np.shape[0], 1))
 
-    pred_tfs = to_transform_batch(pred_np, offset_np, dist_np)
-    targ_tfs = to_transform_batch(targ_np, offset_np, dist_np)
+    pred_tfs = error_def.to_transform_batch(pred_np, offset_np, dist_np)
+    targ_tfs = error_def.to_transform_batch(targ_np, offset_np, dist_np)
 
     loss = 0
     for p, t in zip(pred_tfs, targ_tfs):
         if closing_symmetry:
-            loss += add_error_symmetric(t, p, points)
+            loss += error_def.add_error_symmetric(t, p, points)
         else:
-            loss += add_error(t, p, points)
+            loss += error_def.add_error(t, p, points)
 
     loss = torch.tensor([loss], dtype=torch.float, requires_grad=True).cuda()
 
