@@ -285,8 +285,6 @@ class HO3DDataset(data.Dataset):
             offset[:] = point_set[0, :]
         else:
             offset = np.expand_dims(np.mean(point_set, axis=0), 0)
-            # [[-0.16110489  0.06607138 -0.65117906]]
-            # (1, 3)
         point_set = point_set - offset
         # scale the joints
         dist = np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)

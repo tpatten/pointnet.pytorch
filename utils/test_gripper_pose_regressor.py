@@ -24,27 +24,79 @@ rotation_threshold = np.radians(5)
 
 
 def get_arguments_from_filename(filename):
+    # Output is a dictionary
+    f_args = {}
+    sub_str = copy.deepcopy(filename)
     # Subset is the first
-    output_dir = opt.data_subset + '_batch' + str(opt.batchSize) + '_nEpoch' + str(opt.nepoch)
-    if opt.model_loss:
-        output_dir += '_modelLoss'
+    idx = sub_str.find('_')
+    f_args['data_subset'] = sub_str[0:idx]
+    sub_str = sub_str[idx + 1:-1]
+    # Batch is the second
+    idx = sub_str.find('batch')
+    idx2 = sub_str.find('_')
+    f_args['batchSize'] = int(sub_str[idx + 5:idx2])
+    sub_str = sub_str[idx2 + 1:-1]
+    # Epoch is the third
+    idx = sub_str.find('nEpoch')
+    idx2 = sub_str.find('_')
+    f_args['nEpoch'] = int(sub_str[idx + 6: idx2])
+    sub_str = sub_str[idx2 + 1:-1]
+
+    # Get either modelLoss of regLoss
+    idx = sub_str.find('regLoss')
+    if idx != -1:
+        f_args['model_loss'] = False
+        sub_str = sub_str[idx + 8:-1]
     else:
-        output_dir += '_regLoss'
-    if opt.dropout_p > 0.0:
-        output_dir = output_dir + '_dropout' + str(opt.dropout_p).replace('.', '-')
-    if opt.data_augmentation:
-        output_dir += '_augmentation'
-    if opt.split_loss:
-        output_dir += '_splitloss'
-    if opt.split_loss and opt.closing_symmetry:
-        output_dir += '_symmetry'
-    elif opt.model_loss and opt.closing_symmetry:
-        output_dir += '_symmetry'
-    if opt.randomly_flip_closing_angle:
-        output_dir += '_rflipCA'
-    if opt.center_to_wrist_joint:
-        output_dir += '_wristCentered'
-    print('Output directory\n{}'.format(output_dir))
+        f_args['model_loss'] = True
+        sub_str = sub_str[idx + 10:-1]
+
+    # Check if dropout
+    f_args['dropout_p'] = 0.0
+    idx = sub_str.find('dropout')
+    if idx != -1:
+        idx2 = sub_str.find('_')
+        dropout_p = sub_str[idx + 7:idx2]
+        dropout_p = dropout_p.replace('-', '.')
+        f_args['dropout_p'] = float(dropout_p)
+        sub_str = sub_str[idx2 + 1:-1]
+
+    # Check if augmentation
+    f_args['data_augmentation'] = False
+    idx = sub_str.find('augmentation')
+    if idx != -1:
+        f_args['data_augmentation'] = True
+        sub_str = sub_str[idx + 13:-1]
+
+    # Check if split loss
+    f_args['splitloss'] = False
+    idx = sub_str.find('splitLoss')
+    if idx != -1:
+        f_args['splitloss'] = True
+        sub_str = sub_str[idx + 10:-1]
+
+    # Check if symmetry
+    f_args['closing_symmetry'] = False
+    idx = sub_str.find('symmetry')
+    if idx != -1:
+        f_args['closing_symmetry'] = True
+        sub_str = sub_str[idx + 9:-1]
+
+    # Check if flip closing angle
+    f_args['randomly_flip_closing_angle'] = False
+    idx = sub_str.find('rFlipClAng')
+    if idx != -1:
+        f_args['randomly_flip_closing_angle'] = True
+        sub_str = sub_str[idx + 11:-1]
+
+    # Check if wrist centered
+    f_args['center_to_wrist_joint'] = False
+    idx = sub_str.find('wristCentered')
+    if idx != -1:
+        f_args['center_to_wrist_joint'] = True
+        sub_str = sub_str[idx + 15:-1]
+
+    return f_args
 
 
 def visualize(gt_pose, est_pose, pts):
@@ -88,38 +140,26 @@ if __name__ == '__main__':
     parser.add_argument(
         '--dataset', type=str, required=True, help="dataset path")
     parser.add_argument(
-        '--data_subset', type=str, default='', help='subset of the dataset to test')  # ALL ABF BB GPMF GSF MDF SHSU
+        '--data_subset_test', type=str, default='', help='subset of the dataset to test') # ALL ABF BB GPMF GSF MDF SHSU
+    parser.add_argument(
+        '--visualize', action='store_true', help='visualize the predicted grasp pose')
 
     opt = parser.parse_args()
-    opt.batchSize = 32
-    opt.visualize = True
+    f_args = get_arguments_from_filename(opt.model)
+    opt.batchSize = f_args['batchSize']
+    opt.dropout_p = f_args['dropout_p']
+    opt.splitloss = f_args['splitloss']
+    opt.closing_symmetry = f_args['closing_symmetry']
+    opt.lc_weights = [1. / 3., 1. / 3., 1. / 3.]
+    opt.loss_reduction = 'mean'  # 'mean' or 'sum'
+    opt.data_augmentation = f_args['data_augmentation']
+    opt.data_subset_train = f_args['data_subset']
+    if opt.data_subset_test == '':
+        opt.data_subset_test = f_args['data_subset']
+    opt.randomly_flip_closing_angle = f_args['randomly_flip_closing_angle']
+    opt.center_to_wrist_joint = f_args['center_to_wrist_joint']
+    opt.model_loss = f_args['model_loss']
     print(opt)
-
-    filename = os.path.splitext(os.path.basename(opt.model))[0]
-
-
-    output_dir = opt.data_subset + '_batch' + str(opt.batchSize) + '_nEpoch' + str(opt.nepoch)
-    if opt.model_loss:
-        output_dir += '_modelLoss'
-    else:
-        output_dir += '_regLoss'
-    if opt.dropout_p > 0.0:
-        output_dir = output_dir + '_dropout' + str(opt.dropout_p).replace('.', '-')
-    if opt.data_augmentation:
-        output_dir += '_augmentation'
-    if opt.split_loss:
-        output_dir += '_splitloss'
-    if opt.split_loss and opt.closing_symmetry:
-        output_dir += '_symmetry'
-    elif opt.model_loss and opt.closing_symmetry:
-        output_dir += '_symmetry'
-    if opt.randomly_flip_closing_angle:
-        output_dir += '_rflipCA'
-    if opt.center_to_wrist_joint:
-        output_dir += '_wristCentered'
-    print('Output directory\n{}'.format(output_dir))
-
-
 
     blue = lambda x: '\033[94m' + x + '\033[0m'
 
@@ -131,7 +171,10 @@ if __name__ == '__main__':
     test_dataset = HO3DDataset(
         root=opt.dataset,
         split='test',
-        data_augmentation=False)
+        data_augmentation=False,
+        subset_name=opt.data_subset_test,
+        randomly_flip_closing_angle=opt.randomly_flip_closing_angle,
+        center_to_wrist_joint=opt.center_to_wrist_joint)
 
     testdataloader = torch.utils.data.DataLoader(
             test_dataset,
@@ -143,7 +186,7 @@ if __name__ == '__main__':
     regressor.cuda()
     regressor = regressor.eval()
 
-    gripper_filename = 'hand_open.xyz'
+    gripper_filename = 'hand_open_symmetric.xyz'
     gripper_pts = np.loadtxt(gripper_filename)
 
     error_names = [error_def.ADD_CODE,

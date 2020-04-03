@@ -37,15 +37,15 @@ parser.add_argument(
 parser.add_argument(
     '--splitloss', action='store_true', help="compute loss separately for translation and directions")
 parser.add_argument(
-    '--closing_symmetry', action='store_false', help="consider loss function that is symmetric for the closing angle")
+    '--closing_symmetry', action='store_true', help="consider loss function that is symmetric for the closing angle")
 parser.add_argument(
-    '--data_augmentation', action='store_false', help="apply data augmentation when training")
+    '--data_augmentation', action='store_true', help="apply data augmentation when training")
 parser.add_argument(
     '--data_subset', type=str, default='ALL', help='subset of the dataset to train on')  # ALL ABF BB GPMF GSF MDF SHSU
 parser.add_argument(
-    '--randomly_flip_closing_angle', action='store_false', help="apply random flips to the closing angle")
+    '--randomly_flip_closing_angle', action='store_true', help="apply random flips to the closing angle")
 parser.add_argument(
-    '--center_to_wrist_joint', action='store_false', help="center the points using the wrist position")
+    '--center_to_wrist_joint', action='store_true', help="center the points using the wrist position")
 parser.add_argument(
     '--model_loss', action='store_false', help="use the model loss (compute distance between points)")
 
@@ -53,7 +53,7 @@ parser.add_argument(
 opt = parser.parse_args()
 opt.k_out = 9
 # opt.dropout_p = 0.0
-# opt.split_loss = True
+# opt.splitloss = True
 # opt.closing_symmetry = False
 opt.lc_weights = [1./3., 1./3., 1./3.]
 opt.loss_reduction = 'mean'  # 'mean' or 'sum'
@@ -109,14 +109,14 @@ if opt.dropout_p > 0.0:
     output_dir = output_dir + '_dropout' + str(opt.dropout_p).replace('.', '-')
 if opt.data_augmentation:
     output_dir += '_augmentation'
-if opt.split_loss:
-    output_dir += '_splitloss'
-if opt.split_loss and opt.closing_symmetry:
+if opt.splitloss:
+    output_dir += '_splitLoss'
+if opt.splitloss and opt.closing_symmetry:
     output_dir += '_symmetry'
 elif opt.model_loss and opt.closing_symmetry:
     output_dir += '_symmetry'
 if opt.randomly_flip_closing_angle:
-    output_dir += '_rflipCA'
+    output_dir += '_rFlipClAng'
 if opt.center_to_wrist_joint:
     output_dir += '_wristCentered'
 print('Output directory\n{}'.format(output_dir))
@@ -173,7 +173,7 @@ for epoch in range(start_epoch, opt.nepoch):
         if opt.model_loss:
             loss = model_loss(pred, target, offset, dist, gripper_pts, closing_symmetry=opt.closing_symmetry)
         else:
-            loss = regression_loss(pred, target, independent_components=opt.split_loss, lc_weights=opt.lc_weights,
+            loss = regression_loss(pred, target, independent_components=opt.splitloss, lc_weights=opt.lc_weights,
                                    closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
 
         # Backprop
@@ -203,7 +203,7 @@ for epoch in range(start_epoch, opt.nepoch):
             points, target = points.cuda(), target.cuda()
             regressor = regressor.eval()
             pred = regressor(points)
-            loss_test = regression_loss(pred, target, independent_components=opt.split_loss, lc_weights=opt.lc_weights,
+            loss_test = regression_loss(pred, target, independent_components=opt.splitloss, lc_weights=opt.lc_weights,
                                         closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
