@@ -23,6 +23,30 @@ translation_threshold = 0.05
 rotation_threshold = np.radians(5)
 
 
+def get_arguments_from_filename(filename):
+    # Subset is the first
+    output_dir = opt.data_subset + '_batch' + str(opt.batchSize) + '_nEpoch' + str(opt.nepoch)
+    if opt.model_loss:
+        output_dir += '_modelLoss'
+    else:
+        output_dir += '_regLoss'
+    if opt.dropout_p > 0.0:
+        output_dir = output_dir + '_dropout' + str(opt.dropout_p).replace('.', '-')
+    if opt.data_augmentation:
+        output_dir += '_augmentation'
+    if opt.split_loss:
+        output_dir += '_splitloss'
+    if opt.split_loss and opt.closing_symmetry:
+        output_dir += '_symmetry'
+    elif opt.model_loss and opt.closing_symmetry:
+        output_dir += '_symmetry'
+    if opt.randomly_flip_closing_angle:
+        output_dir += '_rflipCA'
+    if opt.center_to_wrist_joint:
+        output_dir += '_wristCentered'
+    print('Output directory\n{}'.format(output_dir))
+
+
 def visualize(gt_pose, est_pose, pts):
     # Gripper point cloud
     gripper_pcd = o3d.geometry.PointCloud()
@@ -59,13 +83,43 @@ def visualize(gt_pose, est_pose, pts):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='', help='model path')
-    parser.add_argument('--dataset', type=str, required=True, help="dataset path")
+    parser.add_argument(
+        '--model', type=str, default='', help='model path')
+    parser.add_argument(
+        '--dataset', type=str, required=True, help="dataset path")
+    parser.add_argument(
+        '--data_subset', type=str, default='', help='subset of the dataset to test')  # ALL ABF BB GPMF GSF MDF SHSU
 
     opt = parser.parse_args()
     opt.batchSize = 32
     opt.visualize = True
     print(opt)
+
+    filename = os.path.splitext(os.path.basename(opt.model))[0]
+
+
+    output_dir = opt.data_subset + '_batch' + str(opt.batchSize) + '_nEpoch' + str(opt.nepoch)
+    if opt.model_loss:
+        output_dir += '_modelLoss'
+    else:
+        output_dir += '_regLoss'
+    if opt.dropout_p > 0.0:
+        output_dir = output_dir + '_dropout' + str(opt.dropout_p).replace('.', '-')
+    if opt.data_augmentation:
+        output_dir += '_augmentation'
+    if opt.split_loss:
+        output_dir += '_splitloss'
+    if opt.split_loss and opt.closing_symmetry:
+        output_dir += '_symmetry'
+    elif opt.model_loss and opt.closing_symmetry:
+        output_dir += '_symmetry'
+    if opt.randomly_flip_closing_angle:
+        output_dir += '_rflipCA'
+    if opt.center_to_wrist_joint:
+        output_dir += '_wristCentered'
+    print('Output directory\n{}'.format(output_dir))
+
+
 
     blue = lambda x: '\033[94m' + x + '\033[0m'
 

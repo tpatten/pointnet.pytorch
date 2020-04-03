@@ -28,21 +28,40 @@ parser.add_argument(
     '--workers', type=int, help='number of data loading workers', default=4)
 parser.add_argument(
     '--nepoch', type=int, default=60, help='number of epochs to train for')
-parser.add_argument('--model', type=str, default='', help='model path')
-parser.add_argument('--dataset', type=str, required=True, help="dataset path")
+parser.add_argument(
+    '--model', type=str, default='', help='model path')
+parser.add_argument(
+    '--dataset', type=str, required=True, help="dataset path")
+parser.add_argument(
+    '--dropout_p', type=float, default=0.0, help='probability of dropout')
+parser.add_argument(
+    '--splitloss', action='store_true', help="compute loss separately for translation and directions")
+parser.add_argument(
+    '--closing_symmetry', action='store_false', help="consider loss function that is symmetric for the closing angle")
+parser.add_argument(
+    '--data_augmentation', action='store_false', help="apply data augmentation when training")
+parser.add_argument(
+    '--data_subset', type=str, default='ALL', help='subset of the dataset to train on')  # ALL ABF BB GPMF GSF MDF SHSU
+parser.add_argument(
+    '--randomly_flip_closing_angle', action='store_false', help="apply random flips to the closing angle")
+parser.add_argument(
+    '--center_to_wrist_joint', action='store_false', help="center the points using the wrist position")
+parser.add_argument(
+    '--model_loss', action='store_false', help="use the model loss (compute distance between points)")
+
 
 opt = parser.parse_args()
 opt.k_out = 9
-opt.dropout_p = 0.0
-opt.split_loss = True
-opt.closing_symmetry = False
+# opt.dropout_p = 0.0
+# opt.split_loss = True
+# opt.closing_symmetry = False
 opt.lc_weights = [1./3., 1./3., 1./3.]
 opt.loss_reduction = 'mean'  # 'mean' or 'sum'
-opt.data_augmentation = False
-opt.data_subset = 'ALL'  # ABF BB GPMF GSF MDF SHSU
-opt.randomly_flip_closing_angle = False
-opt.center_to_wrist_joint = False
-opt.model_loss = False
+# opt.data_augmentation = False
+# opt.data_subset = 'ALL'  # ABF BB GPMF GSF MDF SHSU
+# opt.randomly_flip_closing_angle = False
+# opt.center_to_wrist_joint = False
+# opt.model_loss = False
 print(opt)
 
 blue = lambda x: '\033[94m' + x + '\033[0m'
@@ -81,7 +100,7 @@ print('Size of train: {}\nSize of test: {}'. format(len(dataset), len(test_datas
 gripper_filename = 'hand_open_symmetric.xyz'
 gripper_pts = np.loadtxt(gripper_filename)
 
-output_dir = opt.data_subset + '_batch' + str(opt.batchSize) + '_nepochs' + str(opt.nepochs)
+output_dir = opt.data_subset + '_batch' + str(opt.batchSize) + '_nEpoch' + str(opt.nepoch)
 if opt.model_loss:
     output_dir += '_modelLoss'
 else:
@@ -204,11 +223,11 @@ for epoch in range(start_epoch, opt.nepoch):
 
     # Save the checkpoint
     if epoch != 0:
-        torch.save(regressor.state_dict(), '%s/gpr_model_%d.pth' % (output_dir, epoch))
+        torch.save(regressor.state_dict(), '%s/%s_%d.pth' % (output_dir, output_dir, epoch))
 
     # Only keep every 10th
     if epoch > 0 and (epoch - 1) % 10 != 0:
-        os.remove('%s/gpr_model_%d.pth' % (output_dir, epoch - 1))
+        os.remove('%s/%s_%d.pth' % (output_dir, output_dir, epoch - 1))
 
     # To tensorboard
     epoch_loss[0] /= num_batch
