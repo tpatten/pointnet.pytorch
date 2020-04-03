@@ -231,6 +231,7 @@ class HO3DDataset(data.Dataset):
 
         # Shuffle the files
         filelist = random.shuffle(filelist)
+        print(filelist)
 
         # Create the data path object
         self.datapath = []
@@ -300,6 +301,7 @@ class HO3DDataset(data.Dataset):
             rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
             point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
             point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
+            # TODO augment the target position and angles
 
         # Create tensors and return
         point_set = torch.from_numpy(point_set.astype(np.float32))

@@ -35,10 +35,10 @@ opt = parser.parse_args()
 opt.k_out = 9
 opt.dropout_p = 0.0
 opt.split_loss = True
-opt.closing_symmetry = True
+opt.closing_symmetry = False
 opt.lc_weights = [1./3., 1./3., 1./3.]
 opt.loss_reduction = 'mean'  # 'mean' or 'sum'
-opt.data_augmentation = True
+opt.data_augmentation = False
 opt.data_subset = 'ALL'  # ABF BB GPMF GSF MDF SHSU
 opt.randomly_flip_closing_angle = False
 opt.center_to_wrist_joint = False
@@ -81,7 +81,7 @@ print(len(dataset), len(test_dataset))
 gripper_filename = 'hand_open_symmetric.xyz'
 gripper_pts = np.loadtxt(gripper_filename)
 
-output_dir = opt.data_subset + '_batch' + str(opt.batchSize)
+output_dir = opt.data_subset + '_batch' + str(opt.batchSize) + '_nepochs' + str(opt.nepochs)
 if opt.model_loss:
     output_dir += '_modelLoss'
 else:
@@ -100,11 +100,12 @@ if opt.randomly_flip_closing_angle:
     output_dir += '_rflipCA'
 if opt.center_to_wrist_joint:
     output_dir += '_wristCentered'
+print('Output directory\n{}'.format(output_dir))
 
-try:
-    os.makedirs(output_dir)
-except OSError:
-    pass
+#try:
+#    os.makedirs(output_dir)
+#except OSError:
+#    pass
 
 regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p)
 
@@ -128,7 +129,7 @@ num_batch = len(dataset) / opt.batchSize
 all_errors = {}
 all_errors[error_def.ADD_CODE] = []
 
-tensorboard_writer = SummaryWriter('/home/tpatten/logs/' + output_dir)
+#tensorboard_writer = SummaryWriter('/home/tpatten/logs/' + output_dir)
 
 for epoch in range(start_epoch, opt.nepoch):
     epoch_loss = [0, 0]
@@ -174,6 +175,7 @@ for epoch in range(start_epoch, opt.nepoch):
         print('[%d: %d/%d] train loss: %f accuracy: %f' % (epoch, i, num_batch, loss.item(), evals[0]))
         epoch_loss[0] += loss.item()
         epoch_accuracy[0] += evals[0]
+        sys.exit(0)
 
         # Check accuracy on test set (validation)
         if i % 10 == 0:
