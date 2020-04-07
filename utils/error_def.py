@@ -166,7 +166,7 @@ def eval_add_adds(errors, threshold):
     for e in errors:
         if e <= threshold:
             num_correct += 1
-    return float(num_correct) / float(len(errors))
+    return float(num_correct) / float(len(errors)), num_correct
 
 
 def eval_translation_rotation(t_errors, r_errors, r_x_errors, r_y_errors, r_z_errors, t_threshold, r_threshold):
@@ -175,9 +175,9 @@ def eval_translation_rotation(t_errors, r_errors, r_x_errors, r_y_errors, r_z_er
         for i in range(len(t_errors)):
             if t_errors[i] <= t_threshold and r_errors[i] <= r_threshold:
                 num_correct += 1
-        tr_eval = float(num_correct) / float(len(t_errors))
+        tr_eval = float(num_correct) / float(len(t_errors)), num_correct
     else:
-        tr_eval = 0.
+        tr_eval = 0., 0
 
     if len(r_x_errors) > 0 and len(r_y_errors) > 0 and len(r_z_errors) > 0:
         num_correct = 0
@@ -185,8 +185,8 @@ def eval_translation_rotation(t_errors, r_errors, r_x_errors, r_y_errors, r_z_er
             if t_errors[i] <= t_threshold and r_x_errors[i] <= r_threshold and r_y_errors[i] <= r_threshold and \
                     r_z_errors[i] <= r_threshold:
                 num_correct += 1
-        trxyz_eval = float(num_correct) / float(len(t_errors))
+        trxyz_eval = float(num_correct) / float(len(t_errors)), num_correct
     else:
-        trxyz_eval = 0.
+        trxyz_eval = 0., 0
 
     return tr_eval, trxyz_eval

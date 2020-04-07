@@ -218,8 +218,10 @@ if __name__ == '__main__':
             all_errors[key].extend(errs[key])
 
         evals = error_def.eval_grasps(errs, add_threshold, adds_threshold, (translation_threshold, rotation_threshold))
+        print('\nCorrect:\t{}\t{}\t{}\t{}'.format(
+            round(evals[0][1], 3), round(evals[1][1], 3), round(evals[2][1], 3), round(evals[3][1], 3)))
         print('\nAccuracy:\t{}\t{}\t{}\t{}'.format(
-            round(evals[0], 3), round(evals[1], 3), round(evals[2], 3), round(evals[3], 3)))
+            round(evals[0][0], 3), round(evals[1][0], 3), round(evals[2][0], 3), round(evals[3][0], 3)))
 
         if opt.visualize:
             err_str = '       '
@@ -256,17 +258,22 @@ if __name__ == '__main__':
 
                 visualize(targ_tfs[j], pred_tfs[j], gripper_pts)
 
-    evals = error_def.eval_grasps(all_errors, add_threshold, adds_threshold, (translation_threshold, rotation_threshold))
-    print('\n--- FINAL ACCURACY ---')
+    evals = error_def.eval_grasps(all_errors, add_threshold, adds_threshold,
+                                  (translation_threshold, rotation_threshold))
+    print('\n--- FINAL CORRECT ({}) ---'.format(all_errors[error_def.ADDS_CODE]))
     print('ADD\tADDS\tT/R\tT/Rxyz')
-    print('{}\t{}\t{}\t{}'.format(round(evals[0], 3), round(evals[1], 3), round(evals[2], 3), round(evals[3], 3)))
-    print('')
+    print('{}\t{}\t{}\t{}\n'.format(round(evals[0][1], 3), round(evals[1][1], 3),
+                                    round(evals[2][1], 3), round(evals[3][1], 3)))
+    print('--- FINAL ACCURACY ---')
+    print('ADD\tADDS\tT/R\tT/Rxyz')
+    print('{}\t{}\t{}\t{}\n'.format(round(evals[0][0], 3), round(evals[1][0], 3),
+                                    round(evals[2][0], 3), round(evals[3][0], 3)))
 
-    save_filename = 'results/results.pkl'
+    save_filename = 'results/' + os.path.basename(opt.model).replace('.pth', '.pkl')
     with open(save_filename, 'wb') as f:
         pickle.dump(all_errors, f)
 
-    save_filename = save_filename.replace('pkl', 'txt')
+    save_filename = save_filename.replace('.pkl', '.txt')
     f = open(save_filename, 'w')
     for key in all_errors:
         f.write(str(key) + ' ')

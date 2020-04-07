@@ -280,9 +280,8 @@ class HO3DDataset(data.Dataset):
         target[6:9] = close_vec
 
         # center the joints
-        offset = np.zeros((1, 3))
         if self.center_to_wrist_joint:
-            offset[:] = point_set[0, :]
+            offset = np.copy(point_set[0, :]).reshape((1, 3))
         else:
             offset = np.expand_dims(np.mean(point_set, axis=0), 0)
         point_set = point_set - offset
@@ -296,11 +295,11 @@ class HO3DDataset(data.Dataset):
 
         # Apply augmentation
         if self.data_augmentation:
-            theta = np.random.uniform(-0.1 * np.pi, 0.1 * np.pi)
-            rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-            point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
-            point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
-            # TODO augment the target position and angles
+            # theta = np.random.uniform(-0.1 * np.pi, 0.1 * np.pi)
+            # rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+            # point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
+            # point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
+            point_set, target = self.augment_data(point_set, target)
 
         # Create tensors and return
         point_set = torch.from_numpy(point_set.astype(np.float32))
@@ -333,6 +332,37 @@ class HO3DDataset(data.Dataset):
         split_root_name = 'train'
 
         return splitfile, split_root_name
+
+    def augment_data(self, point_set, target):
+        # Global rotation
+        rotation_matrix = tf3d.euler.euler2mat(np.random.uniform(-np.pi, np.pi),
+                                               np.random.uniform(-np.pi, np.pi),
+                                               np.random.uniform(-np.pi, np.pi))
+        point_set_augmented = np.copy(point_set)
+        point_set_augmented = np.matmul(point_set_augmented, rotation_matrix)
+
+        target_augmented = np.copy(target)
+        target_augmented = target_augmented.reshape((3, 3))
+        target_augmented = np.matmul(target_augmented, rotation_matrix)
+
+        # Local rotation and jitter to point set
+        theta_lims = [-0.05 * np.pi, 0.05 * np.pi]
+        jitter_scale = 0.01
+        rotation_matrix = tf3d.euler.euler2mat(np.random.uniform(theta_lims[0], theta_lims[1]),
+                                               np.random.uniform(theta_lims[0], theta_lims[1]),
+                                               np.random.uniform(theta_lims[0], theta_lims[1]))
+        point_set_augmented = np.matmul(point_set_augmented, rotation_matrix)  # random rotation
+        jitter = np.random.normal(0, jitter_scale, size=point_set_augmented.shape)  # random jitter
+        point_set_augmented += jitter
+
+        if self.center_to_wrist_joint:
+            offset_augmented = np.copy(point_set_augmented[0, :]).reshape((1, 3))
+            point_set_augmented -= offset_augmented
+            target_augmented[0, :] -= offset_augmented.flatten()
+
+        target_augmented = target_augmented.reshape((1, 9)).flatten()
+
+        return point_set_augmented, target_augmented
 
 
 if __name__ == '__main__':

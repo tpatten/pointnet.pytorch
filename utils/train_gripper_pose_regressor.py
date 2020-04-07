@@ -194,9 +194,9 @@ for epoch in range(start_epoch, opt.nepoch):
         evals = error_def.eval_grasps(errs, error_threshold, None, None)
 
         # Print to terminal
-        print('[%d: %d/%d] train loss: %f accuracy: %f' % (epoch, i, num_batch, loss.item(), evals[0]))
+        print('[%d: %d/%d] train loss: %f accuracy: %f' % (epoch, i, num_batch, loss.item(), evals[0][0]))
         epoch_loss[0] += loss.item()
-        epoch_accuracy[0] += evals[0]
+        epoch_accuracy[0] += evals[0][0]
 
         # Check accuracy on test set (validation)
         if i % 10 == 0:
@@ -223,9 +223,9 @@ for epoch in range(start_epoch, opt.nepoch):
             evals_test = error_def.eval_grasps(errs, error_threshold, None, None)
 
             print('[%d: %d/%d] %s loss: %f accuracy: %f' % (epoch, i, num_batch, blue('test'),
-                                                            loss_test.item(), evals_test[0]))
+                                                            loss_test.item(), evals_test[0][0]))
             epoch_loss[1] += loss_test.item()
-            epoch_accuracy[1] += evals_test[0]
+            epoch_accuracy[1] += evals_test[0][0]
             num_tests += 1
 
     # Save the checkpoint
@@ -283,7 +283,11 @@ for i, data in tqdm(enumerate(testdataloader, 0)):
         all_errors[key].extend(errs[key])
 
 evals = error_def.eval_grasps(all_errors, add_threshold, adds_threshold, (translation_threshold, rotation_threshold))
-print('\n--- FINAL ACCURACY ---')
+print('\n--- FINAL CORRECT ({}) ---'.format(all_errors[error_def.ADDS_CODE]))
 print('ADD\tADDS\tT/R\tT/Rxyz')
-print('{}\t{}\t{}\t{}'.format(round(evals[0], 3), round(evals[1], 3), round(evals[2], 3), round(evals[3], 3)))
-print('')
+print('{}\t{}\t{}\t{}\n'.format(round(evals[0][1], 3), round(evals[1][1], 3),
+                                round(evals[2][1], 3), round(evals[3][1], 3)))
+print('--- FINAL ACCURACY ---')
+print('ADD\tADDS\tT/R\tT/Rxyz')
+print('{}\t{}\t{}\t{}\n'.format(round(evals[0][0], 3), round(evals[1][0], 3),
+                                round(evals[2][0], 3), round(evals[3][0], 3)))
