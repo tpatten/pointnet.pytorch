@@ -47,9 +47,9 @@ parser.add_argument(
 parser.add_argument(
     '--center_to_wrist_joint', action='store_true', help="center the points using the wrist position")
 parser.add_argument(
-    '--model_loss', action='store_false', help="use the model loss (compute distance between points)")
+    '--model_loss', action='store_true', help="use the model loss (compute distance between points)")
 parser.add_argument(
-    '--tensorboard', action='store_false', help="enable tensorboard")
+    '--tensorboard', action='store_true', help="enable tensorboard")
 
 
 opt = parser.parse_args()
@@ -206,8 +206,12 @@ for epoch in range(start_epoch, opt.nepoch):
             points, target = points.cuda(), target.cuda()
             regressor = regressor.eval()
             pred = regressor(points)
-            loss_test = regression_loss(pred, target, independent_components=opt.splitloss, lc_weights=opt.lc_weights,
-                                        closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
+            if opt.model_loss:
+                loss_test = model_loss(pred, target, offset, dist, gripper_pts, closing_symmetry=opt.closing_symmetry)
+            else:
+                loss_test = regression_loss(pred, target, independent_components=opt.splitloss,
+                                            lc_weights=opt.lc_weights, closing_symmetry=opt.closing_symmetry,
+                                            reduction=opt.loss_reduction)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
             offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))

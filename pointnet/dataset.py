@@ -323,7 +323,7 @@ class HO3DDataset(data.Dataset):
             suffix = 'grasp_test.txt'
 
         if subset_name_up[0] == 'X' and split == 'test':
-            subset_name_up = subset_name_up[1:-1]
+            subset_name_up = subset_name_up[1:]
 
         if subset_name_up == 'ALL':
             splitfile = os.path.join(self.root, 'splits', suffix)
