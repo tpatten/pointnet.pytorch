@@ -145,7 +145,7 @@ if __name__ == '__main__':
         '--visualize', action='store_true', help='visualize the predicted grasp pose')
 
     opt = parser.parse_args()
-    f_args = get_arguments_from_filename(opt.model)
+    f_args = get_arguments_from_filename(os.path.basename(opt.model))
     opt.batchSize = f_args['batchSize']
     opt.dropout_p = f_args['dropout_p']
     opt.splitloss = f_args['splitloss']
