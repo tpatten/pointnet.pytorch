@@ -11,6 +11,7 @@ from plyfile import PlyData, PlyElement
 import pickle
 import copy
 import random
+import transforms3d as tf3d
 
 
 LEFT_TIP_IN_CLOUD = 3221
