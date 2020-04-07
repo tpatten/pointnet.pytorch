@@ -48,6 +48,8 @@ parser.add_argument(
     '--center_to_wrist_joint', action='store_true', help="center the points using the wrist position")
 parser.add_argument(
     '--model_loss', action='store_false', help="use the model loss (compute distance between points)")
+parser.add_argument(
+    '--tensorboard', action='store_false', help="enable tensorboard")
 
 
 opt = parser.parse_args()
@@ -148,7 +150,8 @@ num_batch = len(dataset) / opt.batchSize
 all_errors = {}
 all_errors[error_def.ADD_CODE] = []
 
-tensorboard_writer = SummaryWriter('/home/tpatten/logs/' + output_dir)
+if opt.tensorboard:
+    tensorboard_writer = SummaryWriter('/home/tpatten/logs/' + output_dir)
 
 for epoch in range(start_epoch, opt.nepoch):
     epoch_loss = [0, 0]
@@ -230,24 +233,26 @@ for epoch in range(start_epoch, opt.nepoch):
         os.remove('%s/%s_%d.pth' % (output_dir, output_dir, epoch - 1))
 
     # To tensorboard
-    epoch_loss[0] /= num_batch
-    epoch_accuracy[0] /= num_batch
-    epoch_loss[1] /= float(num_tests)
-    epoch_accuracy[1] /= float(num_tests)
-    tensorboard_writer.add_scalar('Loss/train', epoch_loss[0], epoch)
-    tensorboard_writer.add_scalar('Loss/test', epoch_loss[1], epoch)
-    tensorboard_writer.add_scalar('Accuracy/train', epoch_accuracy[0], epoch)
-    tensorboard_writer.add_scalar('Accuracy/test', epoch_accuracy[1], epoch)
-    #tensorboard_writer.add_scalars('Loss', {'train': epoch_loss[0], 'test': epoch_loss[1]}, epoch)
-    #tensorboard_writer.add_scalars('Accuracy', {'train': epoch_accuracy[0], 'test': epoch_accuracy[1]}, epoch)
-    #for tag, value in regressor.named_parameters():
-    #    tag = tag.replace('.', '/')
-    #    tensorboard_writer.add_histogram(tag, value.data.cpu().numpy(), epoch)
-    #    if value.grad is not None:
-    #        tensorboard_writer.add_histogram(tag + '/grad', value.grad.cpu().numpy(), epoch)
+    if opt.tensorboard:
+        epoch_loss[0] /= num_batch
+        epoch_accuracy[0] /= num_batch
+        epoch_loss[1] /= float(num_tests)
+        epoch_accuracy[1] /= float(num_tests)
+        tensorboard_writer.add_scalar('Loss/train', epoch_loss[0], epoch)
+        tensorboard_writer.add_scalar('Loss/test', epoch_loss[1], epoch)
+        tensorboard_writer.add_scalar('Accuracy/train', epoch_accuracy[0], epoch)
+        tensorboard_writer.add_scalar('Accuracy/test', epoch_accuracy[1], epoch)
+        #tensorboard_writer.add_scalars('Loss', {'train': epoch_loss[0], 'test': epoch_loss[1]}, epoch)
+        #tensorboard_writer.add_scalars('Accuracy', {'train': epoch_accuracy[0], 'test': epoch_accuracy[1]}, epoch)
+        #for tag, value in regressor.named_parameters():
+        #    tag = tag.replace('.', '/')
+        #    tensorboard_writer.add_histogram(tag, value.data.cpu().numpy(), epoch)
+        #    if value.grad is not None:
+        #        tensorboard_writer.add_histogram(tag + '/grad', value.grad.cpu().numpy(), epoch)
 
-# Close the tensor board writer
-tensorboard_writer.close()
+if opt.tensorboard:
+    # Close the tensor board writer
+    tensorboard_writer.close()
 
 all_errors[error_def.ADDS_CODE] = []
 all_errors[error_def.TRANSLATION_CODE] = []
