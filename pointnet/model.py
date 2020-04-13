@@ -250,6 +250,65 @@ class PointNetRegression(nn.Module):
         return x
 
 
+class PointNetRegressionFC4(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegression, self).__init__()
+        self.dropout_p = dropout_p
+        self.feat = PointNetfeat_custom(global_feat=True, avg_pool=avg_pool)
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 128)
+        self.fc4 = nn.Linear(128, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x, _, _ = self.feat(x)
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.relu(self.bn2(self.fc2(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn3(self.dropout(self.fc3(x))))
+        else:
+            x = F.relu(self.bn3(self.fc3(x)))
+        x = self.fc4(x)
+        return x
+
+
+class PointNetRegressionFC45(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegression, self).__init__()
+        self.dropout_p = dropout_p
+        self.feat = PointNetfeat_custom(global_feat=True, avg_pool=avg_pool)
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 128)
+        self.fc4 = nn.Linear(128, 64)
+        self.fc5 = nn.Linear(64, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.bn4 = nn.BatchNorm1d(64)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x, _, _ = self.feat(x)
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.relu(self.bn2(self.fc2(x)))
+        x = F.relu(self.bn3(self.fc3(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn4(self.dropout(self.fc4(x))))
+        else:
+            x = F.relu(self.bn4(self.fc4(x)))
+        x = self.fc5(x)
+        return x
+
+
 def compute_loss(prediction, target, offset, dist, points, loss_type=MSE_LOSS_CODE, independent_components=False,
                  lc_weights=[1. / 3., 1. / 3., 1. / 3.], closing_symmetry=True, reduction='mean'):
     if loss_type == MODEL_LOSS_CODE:
