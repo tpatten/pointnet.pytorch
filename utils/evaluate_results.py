@@ -16,6 +16,7 @@ opt = parser.parse_args()
 print(opt)
 
 add_th_base = np.linspace(0, 1.0, num_steps, endpoint=True, dtype=np.float32)
+#add_th_base = np.linspace(0, 0.5, num_steps, endpoint=True, dtype=np.float32)
 add_th = gripper_diameter * add_th_base
 adds_th = gripper_diameter * add_th_base
 tr_th_base = np.linspace(0, 0.5, num_steps, endpoint=True, dtype=np.float32)
@@ -43,7 +44,7 @@ if error_def.ADD_CODE in all_errors.keys():
     eval_add = []
     for t in add_th:
         e = error_def.eval_add_adds(all_errors[error_def.ADD_CODE], t)
-        eval_add.append(e)
+        eval_add.append(e[0])
     print('--- ADD ---')
     for e in eval_add:
         print(e)
@@ -53,7 +54,7 @@ if error_def.ADDS_CODE in all_errors.keys():
     eval_adds = []
     for t in adds_th:
         e = error_def.eval_add_adds(all_errors[error_def.ADDS_CODE], t)
-        eval_adds.append(e)
+        eval_adds.append(e[0])
     print('--- ADD SYMMETRIC ---')
     for e in eval_adds:
         print(e)
@@ -76,8 +77,8 @@ if error_def.TRANSLATION_CODE in all_errors.keys():
     eval_trxyz = []
     for i in range(len(t_th)):
         e = error_def.eval_translation_rotation(t_e, r_e, r_e_x, r_e_y, r_e_z, t_th[i], r_th[i])
-        eval_tr.append(e[0])
-        eval_trxyz.append(e[1])
+        eval_tr.append(e[0][0])
+        eval_trxyz.append(e[1][0])
     if len(r_e) > 0:
         print('--- T/R ---')
         for e in eval_tr:
