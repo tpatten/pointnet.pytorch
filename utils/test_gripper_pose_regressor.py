@@ -34,7 +34,7 @@ def get_arguments_from_filename(filename):
     # Batch is the second
     idx = sub_str.find('batch')
     idx2 = sub_str.find('_')
-    f_args['batchSize'] = int(sub_str[idx + 5:idx2])
+    f_args['batch_size'] = int(sub_str[idx + 5:idx2])
     sub_str = sub_str[idx2 + 1:-1]
     # Epoch is the third
     idx = sub_str.find('nEpoch')
@@ -146,10 +146,7 @@ if __name__ == '__main__':
 
     opt = parser.parse_args()
     f_args = get_arguments_from_filename(os.path.basename(opt.model))
-    opt.batchSize = f_args['batchSize']
-    opt.dropout_p = f_args['dropout_p']
-    opt.splitloss = f_args['splitloss']
-    opt.closing_symmetry = f_args['closing_symmetry']
+    opt.batch_size = f_args['batch_size']
     opt.lc_weights = [1. / 3., 1. / 3., 1. / 3.]
     opt.loss_reduction = 'mean'  # 'mean' or 'sum'
     opt.data_augmentation = f_args['data_augmentation']
@@ -158,7 +155,6 @@ if __name__ == '__main__':
         opt.data_subset_test = f_args['data_subset']
     opt.randomly_flip_closing_angle = f_args['randomly_flip_closing_angle']
     opt.center_to_wrist_joint = f_args['center_to_wrist_joint']
-    opt.model_loss = f_args['model_loss']
     print(opt)
 
     blue = lambda x: '\033[94m' + x + '\033[0m'
@@ -178,7 +174,7 @@ if __name__ == '__main__':
 
     testdataloader = torch.utils.data.DataLoader(
             test_dataset,
-            batch_size=opt.batchSize,
+            batch_size=opt.batch_size,
             shuffle=True)
 
     regressor = PointNetRegression(k_out=9)
@@ -258,9 +254,26 @@ if __name__ == '__main__':
 
                 visualize(targ_tfs[j], pred_tfs[j], gripper_pts)
 
+    print('\n--- FINAL ERRORS ---')
+    print('ADD\tADDS\tT\tRx\tRy\tRz\tR')
+    print('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(np.mean(np.asarray(all_errors[error_def.ADD_CODE])),
+                                                np.mean(np.asarray(all_errors[error_def.ADDS_CODE])),
+                                                np.mean(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
+                                                np.mean(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
+                                                np.mean(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
+                                                np.mean(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
+                                                np.mean(np.asarray(all_errors[error_def.ROTATION_CODE]))))
+    print('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(np.std(np.asarray(all_errors[error_def.ADD_CODE])),
+                                                np.std(np.asarray(all_errors[error_def.ADDS_CODE])),
+                                                np.std(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
+                                                np.std(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
+                                                np.std(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
+                                                np.std(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
+                                                np.std(np.asarray(all_errors[error_def.ROTATION_CODE]))))
+
     evals = error_def.eval_grasps(all_errors, add_threshold, adds_threshold,
                                   (translation_threshold, rotation_threshold))
-    print('\n--- FINAL CORRECT ({}) ---'.format(all_errors[error_def.ADDS_CODE]))
+    print('\n--- FINAL CORRECT ({}) ---'.format(len(all_errors[error_def.ADDS_CODE])))
     print('ADD\tADDS\tT/R\tT/Rxyz')
     print('{}\t{}\t{}\t{}\n'.format(round(evals[0][1], 3), round(evals[1][1], 3),
                                     round(evals[2][1], 3), round(evals[3][1], 3)))

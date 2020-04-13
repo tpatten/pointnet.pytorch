@@ -9,6 +9,11 @@ import torch.nn.functional as F
 import utils.error_def as error_def
 
 
+MSE_LOSS_CODE = 'MSE'
+L1_LOSS_CODE = 'L1'
+MODEL_LOSS_CODE = 'MODEL'
+
+
 class STN3d(nn.Module):
     def __init__(self):
         super(STN3d, self).__init__()
@@ -129,7 +134,7 @@ class PointNetfeat(nn.Module):
 
 
 class PointNetfeat_custom(nn.Module):
-    def __init__(self, global_feat=True):
+    def __init__(self, global_feat=True, avg_pool=False):
         super(PointNetfeat_custom, self).__init__()
         self.conv1 = torch.nn.Conv1d(3, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
@@ -138,6 +143,7 @@ class PointNetfeat_custom(nn.Module):
         self.bn2 = nn.BatchNorm1d(128)
         self.bn3 = nn.BatchNorm1d(1024)
         self.global_feat = global_feat
+        self.avg_pool = avg_pool
 
     def forward(self, x):
         n_pts = x.size()[2]
@@ -148,7 +154,10 @@ class PointNetfeat_custom(nn.Module):
         pointfeat = x
         x = F.relu(self.bn2(self.conv2(x)))
         x = self.bn3(self.conv3(x))
-        x = torch.max(x, 2, keepdim=True)[0]
+        if self.avg_pool:
+            x = torch.mean(x, 2, keepdim=True)
+        else:
+            x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, 1024)
         if self.global_feat:
             return x, trans, trans_feat
@@ -217,10 +226,10 @@ def feature_transform_regularizer(trans):
 
 
 class PointNetRegression(nn.Module):
-    def __init__(self, k_out=3, dropout_p=0.0):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegression, self).__init__()
         self.dropout_p = dropout_p
-        self.feat = PointNetfeat_custom(global_feat=True)
+        self.feat = PointNetfeat_custom(global_feat=True, avg_pool=avg_pool)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, k_out)
@@ -241,8 +250,21 @@ class PointNetRegression(nn.Module):
         return x
 
 
-def regression_loss(prediction, target, independent_components=False, lc_weights=[1./3., 1./3., 1./3.],
-                    closing_symmetry=True, reduction='mean'):
+def compute_loss(prediction, target, offset, dist, points, loss_type=MSE_LOSS_CODE, independent_components=False,
+                 lc_weights=[1. / 3., 1. / 3., 1. / 3.], closing_symmetry=True, reduction='mean'):
+    if loss_type == MODEL_LOSS_CODE:
+        return model_loss(prediction, target, offset, dist, points, closing_symmetry=closing_symmetry)
+    else:
+        if loss_type == L1_LOSS_CODE:
+            return l1_loss(prediction, target, independent_components=independent_components, lc_weights=lc_weights,
+                           closing_symmetry=closing_symmetry, reduction=reduction)
+        else:
+            return mse_loss(prediction, target, independent_components=independent_components, lc_weights=lc_weights,
+                            closing_symmetry=closing_symmetry, reduction=reduction)
+
+
+def mse_loss(prediction, target, independent_components=False, lc_weights=[1./3., 1./3., 1./3.],
+             closing_symmetry=True, reduction='mean'):
     if independent_components:
         loss_translation = F.mse_loss(prediction[:, 0:3], target[:, 0:3], reduction='sum')
         loss_approach = F.mse_loss(prediction[:, 3:6], target[:, 3:6], reduction='sum')
@@ -260,6 +282,29 @@ def regression_loss(prediction, target, independent_components=False, lc_weights
         loss = loss / denom
     else:
         loss = F.mse_loss(prediction, target, reduction=reduction)
+
+    return loss
+
+
+def l1_loss(prediction, target, independent_components=False, lc_weights=[1./3., 1./3., 1./3.],
+            closing_symmetry=True, reduction='mean'):
+    if independent_components:
+        loss_translation = F.l1_loss(prediction[:, 0:3], target[:, 0:3], reduction='sum')
+        loss_approach = F.l1_loss(prediction[:, 3:6], target[:, 3:6], reduction='sum')
+        loss_closing = 0
+        if not closing_symmetry:
+            loss_closing = F.l1_loss(prediction[:, 6:9], target[:, 6:9], reduction='sum')
+        else:
+            for i in range(prediction.size()[0]):
+                loss_closing += min(F.l1_loss(prediction[i, 6:9], target[i, 6:9], reduction='sum'),
+                                    F.l1_loss(prediction[i, 6:9], -target[i, 6:9], reduction='sum'))
+        loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_approach + lc_weights[0] * loss_closing
+        denom = 3.0
+        if reduction == 'mean':
+            denom *= prediction.size()[0]
+        loss = loss / denom
+    else:
+        loss = F.l1_loss(prediction, target, reduction=reduction)
 
     return loss
 

@@ -6,7 +6,7 @@ import torch.optim as optim
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 from pointnet.dataset import HO3DDataset
-from pointnet.model import PointNetRegression, regression_loss, model_loss
+from pointnet.model import PointNetRegression, compute_loss, MSE_LOSS_CODE, L1_LOSS_CODE, MODEL_LOSS_CODE
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
@@ -23,7 +23,7 @@ rotation_threshold = np.radians(5)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    '--batchSize', type=int, default=32, help='input batch size')
+    '--batch_size', type=int, default=32, help='input batch size')
 parser.add_argument(
     '--workers', type=int, help='number of data loading workers', default=4)
 parser.add_argument(
@@ -49,21 +49,26 @@ parser.add_argument(
 parser.add_argument(
     '--model_loss', action='store_true', help="use the model loss (compute distance between points)")
 parser.add_argument(
+    '--average_pool', action='store_true', help="perform average pooling instead of max pooling")
+parser.add_argument(
+    '--weight_decay', type=float, default=0.0, help='weight decay')
+parser.add_argument(
+    '--learning_rate', type=float, default=0.01, help='initial learning rate')
+parser.add_argument(
+    '--learning_step', type=int, default=20, help='step size for learning rate scheduler')
+parser.add_argument(
+    '--learning_gamma', type=float, default=0.5, help='multiplier of the learning rate every step')
+parser.add_argument(
+    '--l1_loss', action='store_true', help="use l1 loss instead of mse (model_loss will override this)")
+parser.add_argument(
     '--tensorboard', action='store_true', help="enable tensorboard")
 
 
 opt = parser.parse_args()
 opt.k_out = 9
-# opt.dropout_p = 0.0
-# opt.splitloss = True
-# opt.closing_symmetry = False
 opt.lc_weights = [1./3., 1./3., 1./3.]
 opt.loss_reduction = 'mean'  # 'mean' or 'sum'
-# opt.data_augmentation = False
-# opt.data_subset = 'ALL'  # ABF BB GPMF GSF MDF SHSU
-# opt.randomly_flip_closing_angle = False
-# opt.center_to_wrist_joint = False
-# opt.model_loss = False
+opt.save_model = True
 print(opt)
 
 blue = lambda x: '\033[94m' + x + '\033[0m'
@@ -87,13 +92,13 @@ test_dataset = HO3DDataset(
 
 dataloader = torch.utils.data.DataLoader(
     dataset,
-    batch_size=opt.batchSize,
+    batch_size=opt.batch_size,
     shuffle=True,
     num_workers=int(opt.workers))
 
 testdataloader = torch.utils.data.DataLoader(
         test_dataset,
-        batch_size=opt.batchSize,
+        batch_size=opt.batch_size,
         shuffle=True,
         num_workers=int(opt.workers))
 
@@ -102,9 +107,11 @@ print('Size of train: {}\nSize of test: {}'. format(len(dataset), len(test_datas
 gripper_filename = 'hand_open_symmetric.xyz'
 gripper_pts = np.loadtxt(gripper_filename)
 
-output_dir = opt.data_subset + '_batch' + str(opt.batchSize) + '_nEpoch' + str(opt.nepoch)
+loss_type = MSE_LOSS_CODE
+output_dir = opt.data_subset + '_batch' + str(opt.batch_size) + '_nEpoch' + str(opt.nepoch)
 if opt.model_loss:
     output_dir += '_modelLoss'
+    loss_type = MODEL_LOSS_CODE
 else:
     output_dir += '_regLoss'
 if opt.dropout_p > 0.0:
@@ -121,14 +128,24 @@ if opt.randomly_flip_closing_angle:
     output_dir += '_rFlipClAng'
 if opt.center_to_wrist_joint:
     output_dir += '_wristCentered'
+if opt.average_pool:
+    output_dir += '_avgPool'
+if not opt.model_loss and opt.l1_loss:
+    output_dir += '_l1Loss'
+    loss_type = L1_LOSS_CODE
+if opt.weight_decay > 0.0:
+    output_dir = output_dir + '_wDecay' + str(opt.weight_decay).replace('.', '-')
+output_dir = output_dir + '_lr' + str(opt.learning_rate).replace('.', '-') +\
+             '_ls' + str(opt.learning_step) + '_lg' + str(opt.learning_gamma).replace('.', '-')
 print('Output directory\n{}'.format(output_dir))
 
-try:
-    os.makedirs(output_dir)
-except OSError:
-    pass
+if opt.save_model:
+    try:
+        os.makedirs(output_dir)
+    except OSError:
+        pass
 
-regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p)
+regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
 
 start_epoch = 0
 if opt.model != '':
@@ -138,14 +155,11 @@ if opt.model != '':
     idx = filename.rfind('_')
     start_epoch = int(filename[idx + 1:]) + 1
 
-learning_rate = 0.001
-optimizer = optim.Adam(regressor.parameters(), lr=learning_rate, betas=(0.9, 0.999))
-# Could add weight decay: weight_decay=?
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)
-# Decays the learning rate of each parameter group by gamma every step_size in epochs
+optimizer = optim.Adam(regressor.parameters(), lr=opt.learning_rate, betas=(0.9, 0.999), weight_decay=opt.weight_decay)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=opt.learning_step, gamma=opt.learning_gamma)
 regressor.cuda()
 
-num_batch = len(dataset) / opt.batchSize
+num_batch = len(dataset) / opt.batch_size
 
 all_errors = {}
 all_errors[error_def.ADD_CODE] = []
@@ -173,11 +187,14 @@ for epoch in range(start_epoch, opt.nepoch):
         pred = regressor(points)
 
         # Compute loss value
-        if opt.model_loss:
-            loss = model_loss(pred, target, offset, dist, gripper_pts, closing_symmetry=opt.closing_symmetry)
-        else:
-            loss = regression_loss(pred, target, independent_components=opt.splitloss, lc_weights=opt.lc_weights,
-                                   closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
+        loss = compute_loss(pred, target, offset, dist, gripper_pts, loss_type=loss_type,
+                            independent_components=opt.splitloss, lc_weights=opt.lc_weights,
+                            closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
+        # if opt.model_loss:
+        #     loss = model_loss(pred, target, offset, dist, gripper_pts, closing_symmetry=opt.closing_symmetry)
+        # else:
+        #     loss = mse_loss(pred, target, independent_components=opt.splitloss, lc_weights=opt.lc_weights,
+        #                     closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
 
         # Backprop
         loss.backward()
@@ -206,12 +223,18 @@ for epoch in range(start_epoch, opt.nepoch):
             points, target = points.cuda(), target.cuda()
             regressor = regressor.eval()
             pred = regressor(points)
-            if opt.model_loss:
-                loss_test = model_loss(pred, target, offset, dist, gripper_pts, closing_symmetry=opt.closing_symmetry)
-            else:
-                loss_test = regression_loss(pred, target, independent_components=opt.splitloss,
-                                            lc_weights=opt.lc_weights, closing_symmetry=opt.closing_symmetry,
-                                            reduction=opt.loss_reduction)
+            loss_test = compute_loss(pred, target, offset, dist, gripper_pts, loss_type=loss_type,
+                                     independent_components=opt.splitloss, lc_weights=opt.lc_weights,
+                                     closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
+            # if opt.model_loss:
+            #     loss_test = model_loss(pred, target, offset, dist, gripper_pts, closing_symmetry=opt.closing_symmetry)
+            # else:
+            #     if opt.l1_loss:
+            #         loss_test = l1_loss(pred, target, independent_components=opt.splitloss, lc_weights=opt.lc_weights,
+            #                             closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
+            #     else:
+            #         loss_test = mse_loss(pred, target, independent_components=opt.splitloss, lc_weights=opt.lc_weights,
+            #                              closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
             offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
@@ -229,11 +252,11 @@ for epoch in range(start_epoch, opt.nepoch):
             num_tests += 1
 
     # Save the checkpoint
-    if epoch != 0:
+    if opt.save_model and epoch != 0:
         torch.save(regressor.state_dict(), '%s/%s_%d.pth' % (output_dir, output_dir, epoch))
 
     # Only keep every 10th
-    if epoch > 0 and (epoch - 1) % 10 != 0:
+    if opt.save_model and epoch > 0 and (epoch - 1) % 10 != 0:
         os.remove('%s/%s_%d.pth' % (output_dir, output_dir, epoch - 1))
 
     # To tensorboard
@@ -282,8 +305,25 @@ for i, data in tqdm(enumerate(testdataloader, 0)):
     for key in all_errors:
         all_errors[key].extend(errs[key])
 
+print('\n--- FINAL ERRORS ---')
+print('ADD\tADDS\tT\tRx\tRy\tRz\tR')
+print('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(np.mean(np.asarray(all_errors[error_def.ADD_CODE])),
+                                            np.mean(np.asarray(all_errors[error_def.ADDS_CODE])),
+                                            np.mean(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
+                                            np.mean(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
+                                            np.mean(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
+                                            np.mean(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
+                                            np.mean(np.asarray(all_errors[error_def.ROTATION_CODE]))))
+print('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(np.std(np.asarray(all_errors[error_def.ADD_CODE])),
+                                            np.std(np.asarray(all_errors[error_def.ADDS_CODE])),
+                                            np.std(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
+                                            np.std(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
+                                            np.std(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
+                                            np.std(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
+                                            np.std(np.asarray(all_errors[error_def.ROTATION_CODE]))))
+
 evals = error_def.eval_grasps(all_errors, add_threshold, adds_threshold, (translation_threshold, rotation_threshold))
-print('\n--- FINAL CORRECT ({}) ---'.format(all_errors[error_def.ADDS_CODE]))
+print('\n--- FINAL CORRECT ({}) ---'.format(len(all_errors[error_def.ADDS_CODE])))
 print('ADD\tADDS\tT/R\tT/Rxyz')
 print('{}\t{}\t{}\t{}\n'.format(round(evals[0][1], 3), round(evals[1][1], 3),
                                 round(evals[2][1], 3), round(evals[3][1], 3)))

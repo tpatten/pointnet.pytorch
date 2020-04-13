@@ -347,7 +347,7 @@ class HO3DDataset(data.Dataset):
         target_augmented = np.matmul(target_augmented, rotation_matrix)
 
         # Local rotation and jitter to point set
-        theta_lims = [-0.05 * np.pi, 0.05 * np.pi]
+        theta_lims = [-0.025 * np.pi, 0.025 * np.pi]
         jitter_scale = 0.01
         rotation_matrix = tf3d.euler.euler2mat(np.random.uniform(theta_lims[0], theta_lims[1]),
                                                np.random.uniform(theta_lims[0], theta_lims[1]),
