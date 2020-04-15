@@ -215,12 +215,14 @@ class HO3DDataset(data.Dataset):
                  data_augmentation=True,
                  subset_name='ALL',
                  randomly_flip_closing_angle=False,
-                 center_to_wrist_joint=False):
+                 center_to_wrist_joint=False,
+                 disable_global_augmentation=False):
         self.root = root
         splitfile, split_root_name = self.get_split_file(split, subset_name)
         self.data_augmentation = data_augmentation
         self.randomly_flip_closing_angle = randomly_flip_closing_angle
         self.center_to_wrist_joint = center_to_wrist_joint
+        self.disable_global_augmentation = disable_global_augmentation
 
         # Get the gripper model
         self.base_pcd = np.loadtxt(gripper_xyz)
@@ -300,7 +302,7 @@ class HO3DDataset(data.Dataset):
             # rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
             # point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
             # point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
-            point_set, target = self.augment_data(point_set, target)
+            point_set, target = self.augment_data(point_set, target, self.disable_global_augmentation)
 
         # Create tensors and return
         point_set = torch.from_numpy(point_set.astype(np.float32))
@@ -334,17 +336,19 @@ class HO3DDataset(data.Dataset):
 
         return splitfile, split_root_name
 
-    def augment_data(self, point_set, target):
+    def augment_data(self, point_set, target, disable_global=False):
         # Global rotation
         rotation_matrix = tf3d.euler.euler2mat(np.random.uniform(-np.pi, np.pi),
                                                np.random.uniform(-np.pi, np.pi),
                                                np.random.uniform(-np.pi, np.pi))
         point_set_augmented = np.copy(point_set)
-        point_set_augmented = np.matmul(point_set_augmented, rotation_matrix)
+        if not disable_global:
+            point_set_augmented = np.matmul(point_set_augmented, rotation_matrix)
 
         target_augmented = np.copy(target)
         target_augmented = target_augmented.reshape((3, 3))
-        target_augmented = np.matmul(target_augmented, rotation_matrix)
+        if not disable_global:
+            target_augmented = np.matmul(target_augmented, rotation_matrix)
 
         # Local rotation and jitter to point set
         theta_lims = [-0.025 * np.pi, 0.025 * np.pi]

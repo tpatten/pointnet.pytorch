@@ -78,6 +78,8 @@ parser.add_argument(
 parser.add_argument(
     '--arch', type=int, default=1, help='architecture to use')
 parser.add_argument(
+    '--disable_global_augmentation', action='store_true', help='to turn off global data augmentation')
+parser.add_argument(
     '--tensorboard', action='store_true', help="enable tensorboard")
 
 
@@ -150,6 +152,8 @@ if opt.average_pool:
 if not opt.model_loss and opt.l1_loss:
     output_dir += '_smoothl1Loss'
     loss_type = SMOOTH_L1_LOSS_CODE
+if opt.disable_global_augmentation:
+    output_dir += '_globAugDisabled'
 if opt.weight_decay > 0.0:
     output_dir = output_dir + '_wDecay' + str(opt.weight_decay).replace('.', '-')
 output_dir = output_dir + '_lr' + str(opt.learning_rate).replace('.', '-') +\
