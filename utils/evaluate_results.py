@@ -8,6 +8,7 @@ import pickle
 
 gripper_diameter = 0.232280153674483
 num_steps = 15
+add_lim = 0.5
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--file', type=str, default='results/results.pkl', help='pickle file with stored results')
@@ -15,8 +16,7 @@ parser.add_argument('--file', type=str, default='results/results.pkl', help='pic
 opt = parser.parse_args()
 print(opt)
 
-add_th_base = np.linspace(0, 1.0, num_steps, endpoint=True, dtype=np.float32)
-#add_th_base = np.linspace(0, 0.5, num_steps, endpoint=True, dtype=np.float32)
+add_th_base = np.linspace(0, add_lim, num_steps, endpoint=True, dtype=np.float32)
 add_th = gripper_diameter * add_th_base
 adds_th = gripper_diameter * add_th_base
 tr_th_base = np.linspace(0, 0.5, num_steps, endpoint=True, dtype=np.float32)
@@ -89,3 +89,22 @@ if error_def.TRANSLATION_CODE in all_errors.keys():
         for e in eval_trxyz:
             print(e)
         print('')
+
+print('\n--- AVERAGE ERRORS ---')
+print('ADD\tADDS\tT\tRx\tRy\tRz\tR')
+print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(
+    np.mean(np.asarray(all_errors[error_def.ADD_CODE])),
+    np.mean(np.asarray(all_errors[error_def.ADDS_CODE])),
+    np.mean(np.asarray(all_errors[error_def.TRANSLATION_CODE])) * 1000,
+    np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_X_CODE]))),
+    np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_Y_CODE]))),
+    np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_Z_CODE]))),
+    np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_CODE])))))
+print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(
+    np.std(np.asarray(all_errors[error_def.ADD_CODE])),
+    np.std(np.asarray(all_errors[error_def.ADDS_CODE])),
+    np.std(np.asarray(all_errors[error_def.TRANSLATION_CODE])) * 1000,
+    np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_X_CODE]))),
+    np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_Y_CODE]))),
+    np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_Z_CODE]))),
+    np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_CODE])))))

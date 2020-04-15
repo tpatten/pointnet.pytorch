@@ -380,11 +380,13 @@ def model_loss(prediction, target, offset, dist, points, closing_symmetry=True):
     loss = 0
     for p, t in zip(pred_tfs, targ_tfs):
         if closing_symmetry:
-            loss += error_def.add_error_symmetric(t, p, points)
+            loss += error_def.add_symmetric_error(t, p, points)
         else:
             loss += error_def.add_error(t, p, points)
 
-    loss = torch.tensor([loss], dtype=torch.float, requires_grad=True).cuda()
+    # I could divide here by the size of the batch (pred_np.shape[0])
+
+    loss = torch.tensor(loss, dtype=torch.float, requires_grad=True).cuda()
 
     return loss
 

@@ -256,31 +256,31 @@ if __name__ == '__main__':
 
     print('\n--- FINAL ERRORS ---')
     print('ADD\tADDS\tT\tRx\tRy\tRz\tR')
-    print('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(np.mean(np.asarray(all_errors[error_def.ADD_CODE])),
-                                                np.mean(np.asarray(all_errors[error_def.ADDS_CODE])),
-                                                np.mean(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
-                                                np.mean(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
-                                                np.mean(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
-                                                np.mean(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
-                                                np.mean(np.asarray(all_errors[error_def.ROTATION_CODE]))))
-    print('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(np.std(np.asarray(all_errors[error_def.ADD_CODE])),
-                                                np.std(np.asarray(all_errors[error_def.ADDS_CODE])),
-                                                np.std(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
-                                                np.std(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
-                                                np.std(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
-                                                np.std(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
-                                                np.std(np.asarray(all_errors[error_def.ROTATION_CODE]))))
+    print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(
+        np.mean(np.asarray(all_errors[error_def.ADD_CODE])),
+        np.mean(np.asarray(all_errors[error_def.ADDS_CODE])),
+        np.mean(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
+        np.mean(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
+        np.mean(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
+        np.mean(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
+        np.mean(np.asarray(all_errors[error_def.ROTATION_CODE]))))
+    print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(
+        np.std(np.asarray(all_errors[error_def.ADD_CODE])),
+        np.std(np.asarray(all_errors[error_def.ADDS_CODE])),
+        np.std(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
+        np.std(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
+        np.std(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
+        np.std(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
+        np.std(np.asarray(all_errors[error_def.ROTATION_CODE]))))
 
     evals = error_def.eval_grasps(all_errors, add_threshold, adds_threshold,
                                   (translation_threshold, rotation_threshold))
     print('\n--- FINAL CORRECT ({}) ---'.format(len(all_errors[error_def.ADDS_CODE])))
     print('ADD\tADDS\tT/R\tT/Rxyz')
-    print('{}\t{}\t{}\t{}\n'.format(round(evals[0][1], 3), round(evals[1][1], 3),
-                                    round(evals[2][1], 3), round(evals[3][1], 3)))
+    print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(evals[0][1], evals[1][1], evals[2][1], evals[3][1]))
     print('--- FINAL ACCURACY ---')
     print('ADD\tADDS\tT/R\tT/Rxyz')
-    print('{}\t{}\t{}\t{}\n'.format(round(evals[0][0], 3), round(evals[1][0], 3),
-                                    round(evals[2][0], 3), round(evals[3][0], 3)))
+    print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(evals[0][0], evals[1][0], evals[2][0], evals[3][0]))
 
     save_filename = 'results/' + os.path.basename(opt.model).replace('.pth', '.pkl')
     with open(save_filename, 'wb') as f:
