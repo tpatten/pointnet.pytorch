@@ -6,11 +6,15 @@ import torch.optim as optim
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 from pointnet.dataset import HO3DDataset
-from pointnet.model import PointNetRegression, compute_loss, MSE_LOSS_CODE, L1_LOSS_CODE, SMOOTH_L1_LOSS_CODE, MODEL_LOSS_CODE
+from pointnet.model import PointNetRegression, compute_loss,\
+    MSE_LOSS_CODE, L1_LOSS_CODE, SMOOTH_L1_LOSS_CODE, MODEL_LOSS_CODE,\
+    PointNetRegressionSym, PointNetRegressionFC4, PointNetRegressionFC4Sym, PointNetRegressionFC45,\
+    PointNetRegressionFC45Sym, PointNetRegressionSmall3Layers, PointNetRegressionSmall4Layers
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
 import error_def
+from enum import Enum
 
 num_points = 21
 
@@ -19,6 +23,17 @@ add_threshold = error_threshold
 adds_threshold = add_threshold
 translation_threshold = 0.05
 rotation_threshold = np.radians(5)
+
+
+class Archs(Enum):
+    PN = 1
+    PN_Sym = 2
+    PN_FC4 = 3
+    PN_FC4_Sym = 4
+    PN_FC45 = 5
+    PN_FC45_Sym = 6
+    PN_Small_3L = 7
+    PN_Small_4L = 8
 
 
 parser = argparse.ArgumentParser()
@@ -60,6 +75,8 @@ parser.add_argument(
     '--learning_gamma', type=float, default=0.5, help='multiplier of the learning rate every step')
 parser.add_argument(
     '--l1_loss', action='store_true', help="use l1 loss instead of mse (model_loss will override this)")
+parser.add_argument(
+    '--arch', type=int, default=1, help='architecture to use')
 parser.add_argument(
     '--tensorboard', action='store_true', help="enable tensorboard")
 
@@ -137,6 +154,7 @@ if opt.weight_decay > 0.0:
     output_dir = output_dir + '_wDecay' + str(opt.weight_decay).replace('.', '-')
 output_dir = output_dir + '_lr' + str(opt.learning_rate).replace('.', '-') +\
              '_ls' + str(opt.learning_step) + '_lg' + str(opt.learning_gamma).replace('.', '-')
+output_dir = output_dir + '_arch' + str(opt.arch)
 print('Output directory\n{}'.format(output_dir))
 
 if opt.save_model:
@@ -145,7 +163,27 @@ if opt.save_model:
     except OSError:
         pass
 
-regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+regressor = None
+# regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+if opt.arch == Archs.PN:
+    regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+elif opt.arch == Archs.PN_Sym:
+    regressor = PointNetRegressionSym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+elif opt.arch == Archs.PN_FC4:
+    regressor = PointNetRegressionFC4(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+elif opt.arch == Archs.PN_FC4_Sym:
+    regressor = PointNetRegressionFC4Sym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+elif opt.arch == Archs.PN_FC45:
+    regressor = PointNetRegressionFC45(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+elif opt.arch == Archs.PN_FC45_Sym:
+    regressor = PointNetRegressionFC45Sym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+elif opt.arch == Archs.PN_Small_3L:
+    regressor = PointNetRegressionSmall3Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+elif opt.arch == Archs.PN_Small_4L:
+    regressor = PointNetRegressionSmall4Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+else:
+    print('Unknown architecture specified')
+    sys.exit(0)
 
 start_epoch = 0
 if opt.model != '':
@@ -190,11 +228,6 @@ for epoch in range(start_epoch, opt.nepoch):
         loss = compute_loss(pred, target, offset, dist, gripper_pts, loss_type=loss_type,
                             independent_components=opt.splitloss, lc_weights=opt.lc_weights,
                             closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
-        # if opt.model_loss:
-        #     loss = model_loss(pred, target, offset, dist, gripper_pts, closing_symmetry=opt.closing_symmetry)
-        # else:
-        #     loss = mse_loss(pred, target, independent_components=opt.splitloss, lc_weights=opt.lc_weights,
-        #                     closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
 
         # Backprop
         loss.backward()
@@ -226,15 +259,6 @@ for epoch in range(start_epoch, opt.nepoch):
             loss_test = compute_loss(pred, target, offset, dist, gripper_pts, loss_type=loss_type,
                                      independent_components=opt.splitloss, lc_weights=opt.lc_weights,
                                      closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
-            # if opt.model_loss:
-            #     loss_test = model_loss(pred, target, offset, dist, gripper_pts, closing_symmetry=opt.closing_symmetry)
-            # else:
-            #     if opt.l1_loss:
-            #         loss_test = l1_loss(pred, target, independent_components=opt.splitloss, lc_weights=opt.lc_weights,
-            #                             closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
-            #     else:
-            #         loss_test = mse_loss(pred, target, independent_components=opt.splitloss, lc_weights=opt.lc_weights,
-            #                              closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
             offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))

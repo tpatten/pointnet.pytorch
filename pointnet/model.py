@@ -135,7 +135,7 @@ class PointNetfeat(nn.Module):
 
 
 class PointNetfeat_custom(nn.Module):
-    def __init__(self, global_feat=True, avg_pool=False):
+    def __init__(self, avg_pool=False):
         super(PointNetfeat_custom, self).__init__()
         self.conv1 = torch.nn.Conv1d(3, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
@@ -143,16 +143,11 @@ class PointNetfeat_custom(nn.Module):
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(128)
         self.bn3 = nn.BatchNorm1d(1024)
-        self.global_feat = global_feat
         self.avg_pool = avg_pool
 
     def forward(self, x):
-        n_pts = x.size()[2]
-        trans = None
         x = F.relu(self.bn1(self.conv1(x)))
-        trans_feat = None
 
-        pointfeat = x
         x = F.relu(self.bn2(self.conv2(x)))
         x = self.bn3(self.conv3(x))
         if self.avg_pool:
@@ -160,11 +155,7 @@ class PointNetfeat_custom(nn.Module):
         else:
             x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, 1024)
-        if self.global_feat:
-            return x, trans, trans_feat
-        else:
-            x = x.view(-1, 1024, 1).repeat(1, 1, n_pts)
-            return torch.cat([x, pointfeat], 1), trans, trans_feat
+        return x, None, None
 
 
 class PointNetCls(nn.Module):
@@ -230,7 +221,7 @@ class PointNetRegression(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegression, self).__init__()
         self.dropout_p = dropout_p
-        self.feat = PointNetfeat_custom(global_feat=True, avg_pool=avg_pool)
+        self.feat = PointNetfeat_custom(avg_pool=avg_pool)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, k_out)
@@ -251,11 +242,54 @@ class PointNetRegression(nn.Module):
         return x
 
 
+class PointNetRegressionSym(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionSym, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(3, 256, 1)
+        self.conv2 = torch.nn.Conv1d(256, 512, 1)
+        self.conv3 = torch.nn.Conv1d(512, 1024, 1)
+        self.bnf1 = nn.BatchNorm1d(256)
+        self.bnf2 = nn.BatchNorm1d(512)
+        self.bnf3 = nn.BatchNorm1d(1024)
+
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        # Generate feature
+        x = F.relu(self.bnf1(self.conv1(x)))
+        x = F.relu(self.bnf2(self.conv2(x)))
+        x = self.bnf3(self.conv3(x))
+        if self.avg_pool:
+            x = torch.mean(x, 2, keepdim=True)
+        else:
+            x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 1024)
+
+        # Decode
+        x = F.relu(self.bn1(self.fc1(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn2(self.dropout(self.fc2(x))))
+        else:
+            x = F.relu(self.bn2(self.fc2(x)))
+        x = self.fc3(x)
+        return x
+
+
 class PointNetRegressionFC4(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
-        super(PointNetRegression, self).__init__()
+        super(PointNetRegressionFC4, self).__init__()
         self.dropout_p = dropout_p
-        self.feat = PointNetfeat_custom(global_feat=True, avg_pool=avg_pool)
+        self.feat = PointNetfeat_custom(avg_pool=avg_pool)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, 128)
@@ -279,11 +313,60 @@ class PointNetRegressionFC4(nn.Module):
         return x
 
 
+class PointNetRegressionFC4Sym(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionFC4Sym, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(3, 128, 1)
+        self.conv2 = torch.nn.Conv1d(128, 256, 1)
+        self.conv3 = torch.nn.Conv1d(256, 512, 1)
+        self.conv4 = torch.nn.Conv1d(512, 1024, 1)
+        self.bnf1 = nn.BatchNorm1d(128)
+        self.bnf2 = nn.BatchNorm1d(256)
+        self.bnf3 = nn.BatchNorm1d(512)
+        self.bnf4 = nn.BatchNorm1d(1024)
+
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 128)
+        self.fc4 = nn.Linear(128, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        # Generate feature
+        x = F.relu(self.bnf1(self.conv1(x)))
+        x = F.relu(self.bnf2(self.conv2(x)))
+        x = F.relu(self.bnf3(self.conv3(x)))
+        x = self.bnf4(self.conv4(x))
+        if self.avg_pool:
+            x = torch.mean(x, 2, keepdim=True)
+        else:
+            x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 1024)
+
+        # Decode
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.relu(self.bn2(self.fc2(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn3(self.dropout(self.fc3(x))))
+        else:
+            x = F.relu(self.bn3(self.fc3(x)))
+        x = self.fc4(x)
+        return x
+
+
 class PointNetRegressionFC45(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
-        super(PointNetRegression, self).__init__()
+        super(PointNetRegressionFC45, self).__init__()
         self.dropout_p = dropout_p
-        self.feat = PointNetfeat_custom(global_feat=True, avg_pool=avg_pool)
+        self.feat = PointNetfeat_custom(avg_pool=avg_pool)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, 128)
@@ -307,6 +390,153 @@ class PointNetRegressionFC45(nn.Module):
         else:
             x = F.relu(self.bn4(self.fc4(x)))
         x = self.fc5(x)
+        return x
+
+
+class PointNetRegressionFC45Sym(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionFC45Sym, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(3, 64, 1)
+        self.conv2 = torch.nn.Conv1d(64, 128, 1)
+        self.conv3 = torch.nn.Conv1d(128, 256, 1)
+        self.conv4 = torch.nn.Conv1d(256, 512, 1)
+        self.conv5 = torch.nn.Conv1d(512, 1024, 1)
+        self.bnf1 = nn.BatchNorm1d(64)
+        self.bnf2 = nn.BatchNorm1d(128)
+        self.bnf3 = nn.BatchNorm1d(256)
+        self.bnf4 = nn.BatchNorm1d(512)
+        self.bnf5 = nn.BatchNorm1d(1024)
+
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 128)
+        self.fc4 = nn.Linear(128, 64)
+        self.fc5 = nn.Linear(64, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.bn4 = nn.BatchNorm1d(64)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        # Generate feature
+        x = F.relu(self.bnf1(self.conv1(x)))
+        x = F.relu(self.bnf2(self.conv2(x)))
+        x = F.relu(self.bnf3(self.conv3(x)))
+        x = F.relu(self.bnf4(self.conv4(x)))
+        x = self.bnf5(self.conv5(x))
+        if self.avg_pool:
+            x = torch.mean(x, 2, keepdim=True)
+        else:
+            x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 1024)
+
+        # Decode
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.relu(self.bn2(self.fc2(x)))
+        x = F.relu(self.bn3(self.fc3(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn4(self.dropout(self.fc4(x))))
+        else:
+            x = F.relu(self.bn4(self.fc4(x)))
+        x = self.fc5(x)
+        return x
+
+
+class PointNetRegressionSmall3Layers(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionSmall3Layers, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(3, 64, 1)
+        self.conv2 = torch.nn.Conv1d(64, 128, 1)
+        self.conv3 = torch.nn.Conv1d(128, 256, 1)
+        self.bnf1 = nn.BatchNorm1d(64)
+        self.bnf2 = nn.BatchNorm1d(128)
+        self.bnf3 = nn.BatchNorm1d(256)
+
+        self.fc1 = nn.Linear(256, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(128)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        # Generate feature
+        x = F.relu(self.bnf1(self.conv1(x)))
+        x = F.relu(self.bnf2(self.conv2(x)))
+        x = self.bnf3(self.conv3(x))
+        if self.avg_pool:
+            x = torch.mean(x, 2, keepdim=True)
+        else:
+            x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 256)
+
+        # Decode
+        x = F.relu(self.bn1(self.fc1(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn2(self.dropout(self.fc2(x))))
+        else:
+            x = F.relu(self.bn2(self.fc2(x)))
+        x = self.fc3(x)
+        return x
+
+
+class PointNetRegressionSmall4Layers(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionSmall4Layers, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(3, 64, 1)
+        self.conv2 = torch.nn.Conv1d(64, 128, 1)
+        self.conv3 = torch.nn.Conv1d(128, 256, 1)
+        self.conv4 = torch.nn.Conv1d(256, 512, 1)
+        self.bnf1 = nn.BatchNorm1d(64)
+        self.bnf2 = nn.BatchNorm1d(128)
+        self.bnf3 = nn.BatchNorm1d(256)
+        self.bnf4 = nn.BatchNorm1d(512)
+
+        self.fc1 = nn.Linear(512, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, 64)
+        self.fc4 = nn.Linear(64, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(256)
+        self.bn2 = nn.BatchNorm1d(128)
+        self.bn3 = nn.BatchNorm1d(64)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        # Generate feature
+        x = F.relu(self.bnf1(self.conv1(x)))
+        x = F.relu(self.bnf2(self.conv2(x)))
+        x = F.relu(self.bnf3(self.conv3(x)))
+        x = self.bnf4(self.conv4(x))
+        if self.avg_pool:
+            x = torch.mean(x, 2, keepdim=True)
+        else:
+            x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 512)
+
+        # Decode
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.relu(self.bn2(self.fc2(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn3(self.dropout(self.fc3(x))))
+        else:
+            x = F.relu(self.bn3(self.fc3(x)))
+        x = self.fc4(x)
         return x
 
 
