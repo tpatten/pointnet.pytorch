@@ -11,6 +11,7 @@ import utils.error_def as error_def
 
 MSE_LOSS_CODE = 'MSE'
 L1_LOSS_CODE = 'L1'
+SMOOTH_L1_LOSS_CODE = 'SMOOTHL1'
 MODEL_LOSS_CODE = 'MODEL'
 
 
@@ -317,6 +318,9 @@ def compute_loss(prediction, target, offset, dist, points, loss_type=MSE_LOSS_CO
         if loss_type == L1_LOSS_CODE:
             return l1_loss(prediction, target, independent_components=independent_components, lc_weights=lc_weights,
                            closing_symmetry=closing_symmetry, reduction=reduction)
+        elif loss_type == SMOOTH_L1_LOSS_CODE:
+            return smooth_l1_loss(prediction, target, independent_components=independent_components,
+                                  lc_weights=lc_weights, closing_symmetry=closing_symmetry, reduction=reduction)
         else:
             return mse_loss(prediction, target, independent_components=independent_components, lc_weights=lc_weights,
                             closing_symmetry=closing_symmetry, reduction=reduction)
@@ -364,6 +368,29 @@ def l1_loss(prediction, target, independent_components=False, lc_weights=[1./3.,
         loss = loss / denom
     else:
         loss = F.l1_loss(prediction, target, reduction=reduction)
+
+    return loss
+
+
+def smooth_l1_loss(prediction, target, independent_components=False, lc_weights=[1./3., 1./3., 1./3.],
+                   closing_symmetry=True, reduction='mean'):
+    if independent_components:
+        loss_translation = F.smooth_l1_loss(prediction[:, 0:3], target[:, 0:3], reduction='sum')
+        loss_approach = F.smooth_l1_loss(prediction[:, 3:6], target[:, 3:6], reduction='sum')
+        loss_closing = 0
+        if not closing_symmetry:
+            loss_closing = F.smooth_l1_loss(prediction[:, 6:9], target[:, 6:9], reduction='sum')
+        else:
+            for i in range(prediction.size()[0]):
+                loss_closing += min(F.smooth_l1_loss(prediction[i, 6:9], target[i, 6:9], reduction='sum'),
+                                    F.smooth_l1_loss(prediction[i, 6:9], -target[i, 6:9], reduction='sum'))
+        loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_approach + lc_weights[0] * loss_closing
+        denom = 3.0
+        if reduction == 'mean':
+            denom *= prediction.size()[0]
+        loss = loss / denom
+    else:
+        loss = F.smooth_l1_loss(prediction, target, reduction=reduction)
 
     return loss
 

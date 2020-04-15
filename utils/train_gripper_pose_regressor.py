@@ -6,7 +6,7 @@ import torch.optim as optim
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 from pointnet.dataset import HO3DDataset
-from pointnet.model import PointNetRegression, compute_loss, MSE_LOSS_CODE, L1_LOSS_CODE, MODEL_LOSS_CODE
+from pointnet.model import PointNetRegression, compute_loss, MSE_LOSS_CODE, L1_LOSS_CODE, SMOOTH_L1_LOSS_CODE, MODEL_LOSS_CODE
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
@@ -131,8 +131,8 @@ if opt.center_to_wrist_joint:
 if opt.average_pool:
     output_dir += '_avgPool'
 if not opt.model_loss and opt.l1_loss:
-    output_dir += '_l1Loss'
-    loss_type = L1_LOSS_CODE
+    output_dir += '_smoothl1Loss'
+    loss_type = SMOOTH_L1_LOSS_CODE
 if opt.weight_decay > 0.0:
     output_dir = output_dir + '_wDecay' + str(opt.weight_decay).replace('.', '-')
 output_dir = output_dir + '_lr' + str(opt.learning_rate).replace('.', '-') +\
