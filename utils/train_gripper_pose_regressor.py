@@ -1,6 +1,7 @@
 from __future__ import print_function
 import argparse
 import os
+import sys
 import random
 import torch.optim as optim
 import torch.utils.data
@@ -11,7 +12,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
 import error_def
-from enum import Enum
+from enum import IntEnum
 
 num_points = 21
 
@@ -22,7 +23,7 @@ translation_threshold = 0.05
 rotation_threshold = np.radians(5)
 
 
-class Archs(Enum):
+class Archs(IntEnum):
     PN = 1
     PN_Sym = 2
     PN_FC4 = 3

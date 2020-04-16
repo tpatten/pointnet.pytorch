@@ -229,7 +229,6 @@ class PointNetRegression(nn.Module):
             self.dropout = nn.Dropout(p=self.dropout_p)
         self.bn1 = nn.BatchNorm1d(512)
         self.bn2 = nn.BatchNorm1d(256)
-        self.relu = nn.ReLU()
 
     def forward(self, x):
         x, _, _ = self.feat(x)
@@ -262,7 +261,6 @@ class PointNetRegressionSym(nn.Module):
             self.dropout = nn.Dropout(p=self.dropout_p)
         self.bn1 = nn.BatchNorm1d(512)
         self.bn2 = nn.BatchNorm1d(256)
-        self.relu = nn.ReLU()
 
     def forward(self, x):
         # Generate feature
@@ -299,7 +297,6 @@ class PointNetRegressionFC4(nn.Module):
         self.bn1 = nn.BatchNorm1d(512)
         self.bn2 = nn.BatchNorm1d(256)
         self.bn3 = nn.BatchNorm1d(128)
-        self.relu = nn.ReLU()
 
     def forward(self, x):
         x, _, _ = self.feat(x)
@@ -337,7 +334,6 @@ class PointNetRegressionFC4Sym(nn.Module):
         self.bn1 = nn.BatchNorm1d(512)
         self.bn2 = nn.BatchNorm1d(256)
         self.bn3 = nn.BatchNorm1d(128)
-        self.relu = nn.ReLU()
 
     def forward(self, x):
         # Generate feature
@@ -378,7 +374,6 @@ class PointNetRegressionFC45(nn.Module):
         self.bn2 = nn.BatchNorm1d(256)
         self.bn3 = nn.BatchNorm1d(128)
         self.bn4 = nn.BatchNorm1d(64)
-        self.relu = nn.ReLU()
 
     def forward(self, x):
         x, _, _ = self.feat(x)
@@ -421,7 +416,6 @@ class PointNetRegressionFC45Sym(nn.Module):
         self.bn2 = nn.BatchNorm1d(256)
         self.bn3 = nn.BatchNorm1d(128)
         self.bn4 = nn.BatchNorm1d(64)
-        self.relu = nn.ReLU()
 
     def forward(self, x):
         # Generate feature
@@ -468,7 +462,6 @@ class PointNetRegressionSmall3Layers(nn.Module):
             self.dropout = nn.Dropout(p=self.dropout_p)
         self.bn1 = nn.BatchNorm1d(128)
         self.bn2 = nn.BatchNorm1d(64)
-        self.relu = nn.ReLU()
 
     def forward(self, x):
         # Generate feature
@@ -515,7 +508,6 @@ class PointNetRegressionSmall4Layers(nn.Module):
         self.bn1 = nn.BatchNorm1d(256)
         self.bn2 = nn.BatchNorm1d(128)
         self.bn3 = nn.BatchNorm1d(64)
-        self.relu = nn.ReLU()
 
     def forward(self, x):
         # Generate feature

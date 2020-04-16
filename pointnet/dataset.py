@@ -233,7 +233,7 @@ class HO3DDataset(data.Dataset):
         f.close()
 
         # Shuffle the files
-        random.shuffle(filelist)
+        # random.shuffle(filelist)
 
         # Create the data path object
         self.datapath = []
