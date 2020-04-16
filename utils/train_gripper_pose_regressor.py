@@ -6,10 +6,7 @@ import torch.optim as optim
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 from pointnet.dataset import HO3DDataset
-from pointnet.model import PointNetRegression, compute_loss,\
-    MSE_LOSS_CODE, L1_LOSS_CODE, SMOOTH_L1_LOSS_CODE, MODEL_LOSS_CODE,\
-    PointNetRegressionSym, PointNetRegressionFC4, PointNetRegressionFC4Sym, PointNetRegressionFC45,\
-    PointNetRegressionFC45Sym, PointNetRegressionSmall3Layers, PointNetRegressionSmall4Layers
+from pointnet.model import *
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np

@@ -5,7 +5,7 @@ import random
 import torch.optim as optim
 import torch.utils.data
 from pointnet.dataset import HO3DDataset
-from pointnet.model import PointNetRegression
+from pointnet.model import *
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np

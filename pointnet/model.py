@@ -275,7 +275,7 @@ class PointNetRegressionSym(nn.Module):
             x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, 1024)
 
-        # Decode
+        # Fully connected layers
         x = F.relu(self.bn1(self.fc1(x)))
         if self.dropout_p > 0.0:
             x = F.relu(self.bn2(self.dropout(self.fc2(x))))
@@ -351,7 +351,7 @@ class PointNetRegressionFC4Sym(nn.Module):
             x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, 1024)
 
-        # Decode
+        # Fully connected layers
         x = F.relu(self.bn1(self.fc1(x)))
         x = F.relu(self.bn2(self.fc2(x)))
         if self.dropout_p > 0.0:
@@ -436,7 +436,7 @@ class PointNetRegressionFC45Sym(nn.Module):
             x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, 1024)
 
-        # Decode
+        # Fully connected layers
         x = F.relu(self.bn1(self.fc1(x)))
         x = F.relu(self.bn2(self.fc2(x)))
         x = F.relu(self.bn3(self.fc3(x)))
@@ -481,7 +481,7 @@ class PointNetRegressionSmall3Layers(nn.Module):
             x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, 256)
 
-        # Decode
+        # Fully connected layers
         x = F.relu(self.bn1(self.fc1(x)))
         if self.dropout_p > 0.0:
             x = F.relu(self.bn2(self.dropout(self.fc2(x))))
@@ -529,7 +529,7 @@ class PointNetRegressionSmall4Layers(nn.Module):
             x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, 512)
 
-        # Decode
+        # Fully connected layers
         x = F.relu(self.bn1(self.fc1(x)))
         x = F.relu(self.bn2(self.fc2(x)))
         if self.dropout_p > 0.0:
