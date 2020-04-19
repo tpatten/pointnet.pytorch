@@ -12,7 +12,6 @@ import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
 import error_def
-from enum import IntEnum
 
 num_points = 21
 
@@ -21,17 +20,6 @@ add_threshold = error_threshold
 adds_threshold = add_threshold
 translation_threshold = 0.05
 rotation_threshold = np.radians(5)
-
-
-class Archs(IntEnum):
-    PN = 1
-    PN_Sym = 2
-    PN_FC4 = 3
-    PN_FC4_Sym = 4
-    PN_FC45 = 5
-    PN_FC45_Sym = 6
-    PN_Small_3L = 7
-    PN_Small_4L = 8
 
 
 parser = argparse.ArgumentParser()
@@ -97,7 +85,8 @@ torch.manual_seed(opt.manualSeed)
 
 dataset = HO3DDataset(root=opt.dataset, data_augmentation=opt.data_augmentation, subset_name=opt.data_subset,
                       randomly_flip_closing_angle=opt.randomly_flip_closing_angle,
-                      center_to_wrist_joint=opt.center_to_wrist_joint)
+                      center_to_wrist_joint=opt.center_to_wrist_joint,
+                      disable_global_augmentation=opt.disable_global_augmentation)
 
 test_dataset = HO3DDataset(
     root=opt.dataset,
@@ -166,7 +155,6 @@ if opt.save_model:
         pass
 
 regressor = None
-# regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
 if opt.arch == Archs.PN:
     regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
 elif opt.arch == Archs.PN_Sym:
@@ -183,6 +171,8 @@ elif opt.arch == Archs.PN_Small_3L:
     regressor = PointNetRegressionSmall3Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
 elif opt.arch == Archs.PN_Small_4L:
     regressor = PointNetRegressionSmall4Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+elif opt.arch == Archs.PN_Half:
+    regressor = PointNetRegressionHalf(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
 else:
     print('Unknown architecture specified')
     sys.exit(0)
@@ -336,24 +326,24 @@ print('ADD\tADDS\tT\tRx\tRy\tRz\tR')
 print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(
     np.mean(np.asarray(all_errors[error_def.ADD_CODE])),
     np.mean(np.asarray(all_errors[error_def.ADDS_CODE])),
-    np.mean(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
-    np.mean(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
-    np.mean(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
-    np.mean(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
-    np.mean(np.asarray(all_errors[error_def.ROTATION_CODE]))))
+    np.mean(np.asarray(all_errors[error_def.TRANSLATION_CODE])) * 1000,
+    np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_X_CODE]))),
+    np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_Y_CODE]))),
+    np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_Z_CODE]))),
+    np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_CODE])))))
 print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(
     np.std(np.asarray(all_errors[error_def.ADD_CODE])),
     np.std(np.asarray(all_errors[error_def.ADDS_CODE])),
-    np.std(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
-    np.std(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
-    np.std(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
-    np.std(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
-    np.std(np.asarray(all_errors[error_def.ROTATION_CODE]))))
+    np.std(np.asarray(all_errors[error_def.TRANSLATION_CODE])) * 1000,
+    np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_X_CODE]))),
+    np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_Y_CODE]))),
+    np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_Z_CODE]))),
+    np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_CODE])))))
 
 evals = error_def.eval_grasps(all_errors, add_threshold, adds_threshold, (translation_threshold, rotation_threshold))
-print('\n--- FINAL CORRECT ({}) ---'.format(len(all_errors[error_def.ADDS_CODE])))
+print('--- FINAL CORRECT ({}) ---'.format(len(all_errors[error_def.ADDS_CODE])))
 print('ADD\tADDS\tT/R\tT/Rxyz')
-print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(evals[0][1], evals[1][1], evals[2][1], evals[3][1]))
+print('{}\t{}\t{}\t{}\n'.format(evals[0][1], evals[1][1], evals[2][1], evals[3][1]))
 print('--- FINAL ACCURACY ---')
 print('ADD\tADDS\tT/R\tT/Rxyz')
 print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(evals[0][0], evals[1][0], evals[2][0], evals[3][0]))

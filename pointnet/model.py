@@ -7,12 +7,25 @@ from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F
 import utils.error_def as error_def
+from enum import IntEnum
 
 
 MSE_LOSS_CODE = 'MSE'
 L1_LOSS_CODE = 'L1'
 SMOOTH_L1_LOSS_CODE = 'SMOOTHL1'
 MODEL_LOSS_CODE = 'MODEL'
+
+
+class Archs(IntEnum):
+    PN = 1
+    PN_Sym = 2
+    PN_FC4 = 3
+    PN_FC4_Sym = 4
+    PN_FC45 = 5
+    PN_FC45_Sym = 6
+    PN_Small_3L = 7
+    PN_Small_4L = 8
+    PN_Half = 9
 
 
 class STN3d(nn.Module):
@@ -529,6 +542,48 @@ class PointNetRegressionSmall4Layers(nn.Module):
         else:
             x = F.relu(self.bn3(self.fc3(x)))
         x = self.fc4(x)
+        return x
+
+
+class PointNetHalf(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetHalf, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(3, 32, 1)
+        self.conv2 = torch.nn.Conv1d(32, 64, 1)
+        self.conv3 = torch.nn.Conv1d(64, 512, 1)
+        self.bnf1 = nn.BatchNorm1d(32)
+        self.bnf2 = nn.BatchNorm1d(64)
+        self.bnf3 = nn.BatchNorm1d(512)
+
+        self.fc1 = nn.Linear(512, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(256)
+        self.bn2 = nn.BatchNorm1d(128)
+
+    def forward(self, x):
+        # Generate feature
+        x = F.relu(self.bnf1(self.conv1(x)))
+        x = F.relu(self.bnf2(self.conv2(x)))
+        x = self.bnf3(self.conv3(x))  # Add ReLu here?
+        if self.avg_pool:
+            x = torch.mean(x, 2, keepdim=True)
+        else:
+            x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 512)
+
+        # Fully connected layers
+        x = F.relu(self.bn1(self.fc1(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn2(self.dropout(self.fc2(x))))
+        else:
+            x = F.relu(self.bn2(self.fc2(x)))
+        x = self.fc3(x)
         return x
 
 

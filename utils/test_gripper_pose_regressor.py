@@ -1,6 +1,7 @@
 from __future__ import print_function
 import argparse
 import os
+import sys
 import random
 import torch.optim as optim
 import torch.utils.data
@@ -20,7 +21,7 @@ gripper_diameter = 0.232280153674483
 add_threshold = 0.1 * gripper_diameter
 adds_threshold = add_threshold
 translation_threshold = 0.05
-rotation_threshold = np.radians(5)
+rotation_threshold = np.radians(15)
 
 
 def get_arguments_from_filename(filename):
@@ -30,26 +31,26 @@ def get_arguments_from_filename(filename):
     # Subset is the first
     idx = sub_str.find('_')
     f_args['data_subset'] = sub_str[0:idx]
-    sub_str = sub_str[idx + 1:-1]
+    #sub_str = sub_str[idx + 1:]
     # Batch is the second
     idx = sub_str.find('batch')
     idx2 = sub_str.find('_')
     f_args['batch_size'] = int(sub_str[idx + 5:idx2])
-    sub_str = sub_str[idx2 + 1:-1]
+    #sub_str = sub_str[idx2 + 1:]
     # Epoch is the third
     idx = sub_str.find('nEpoch')
     idx2 = sub_str.find('_')
     f_args['nEpoch'] = int(sub_str[idx + 6: idx2])
-    sub_str = sub_str[idx2 + 1:-1]
+    #sub_str = sub_str[idx2 + 1:]
 
     # Get either modelLoss of regLoss
     idx = sub_str.find('regLoss')
     if idx != -1:
         f_args['model_loss'] = False
-        sub_str = sub_str[idx + 8:-1]
+        #sub_str = sub_str[idx + 8:]
     else:
         f_args['model_loss'] = True
-        sub_str = sub_str[idx + 10:-1]
+        #sub_str = sub_str[idx + 10:]
 
     # Check if dropout
     f_args['dropout_p'] = 0.0
@@ -59,42 +60,55 @@ def get_arguments_from_filename(filename):
         dropout_p = sub_str[idx + 7:idx2]
         dropout_p = dropout_p.replace('-', '.')
         f_args['dropout_p'] = float(dropout_p)
-        sub_str = sub_str[idx2 + 1:-1]
+        #sub_str = sub_str[idx2 + 1:]
 
     # Check if augmentation
     f_args['data_augmentation'] = False
     idx = sub_str.find('augmentation')
     if idx != -1:
         f_args['data_augmentation'] = True
-        sub_str = sub_str[idx + 13:-1]
+        #sub_str = sub_str[idx + 13:]
 
     # Check if split loss
     f_args['splitloss'] = False
     idx = sub_str.find('splitLoss')
     if idx != -1:
         f_args['splitloss'] = True
-        sub_str = sub_str[idx + 10:-1]
+        #sub_str = sub_str[idx + 10:]
 
     # Check if symmetry
     f_args['closing_symmetry'] = False
     idx = sub_str.find('symmetry')
     if idx != -1:
         f_args['closing_symmetry'] = True
-        sub_str = sub_str[idx + 9:-1]
+        #sub_str = sub_str[idx + 9:]
 
     # Check if flip closing angle
     f_args['randomly_flip_closing_angle'] = False
     idx = sub_str.find('rFlipClAng')
     if idx != -1:
         f_args['randomly_flip_closing_angle'] = True
-        sub_str = sub_str[idx + 11:-1]
+        #sub_str = sub_str[idx + 11:]
 
     # Check if wrist centered
     f_args['center_to_wrist_joint'] = False
     idx = sub_str.find('wristCentered')
     if idx != -1:
         f_args['center_to_wrist_joint'] = True
-        sub_str = sub_str[idx + 15:-1]
+        #sub_str = sub_str[idx + 15:]
+
+    # Check if average pool is selected
+    f_args['average_pool'] = False
+    idx = sub_str.find('avgPool')
+    if idx != -1:
+        f_args['average_pool'] = True
+
+    # Get the architecture type
+    f_args['arch'] = Archs.PN
+    idx = sub_str.find('arch')
+    if idx != -1:
+        idx2 = sub_str.find('_')
+        f_args['arch'] = int(sub_str[idx + 4: idx2])
 
     return f_args
 
@@ -149,12 +163,15 @@ if __name__ == '__main__':
     opt.batch_size = f_args['batch_size']
     opt.lc_weights = [1. / 3., 1. / 3., 1. / 3.]
     opt.loss_reduction = 'mean'  # 'mean' or 'sum'
+    opt.k_out = 9
     opt.data_augmentation = f_args['data_augmentation']
     opt.data_subset_train = f_args['data_subset']
     if opt.data_subset_test == '':
         opt.data_subset_test = f_args['data_subset']
     opt.randomly_flip_closing_angle = f_args['randomly_flip_closing_angle']
     opt.center_to_wrist_joint = f_args['center_to_wrist_joint']
+    opt.average_pool = f_args['average_pool']
+    opt.arch = f_args['arch']
     print(opt)
 
     blue = lambda x: '\033[94m' + x + '\033[0m'
@@ -177,7 +194,29 @@ if __name__ == '__main__':
             batch_size=opt.batch_size,
             shuffle=True)
 
-    regressor = PointNetRegression(k_out=9)
+    regressor = None
+    if opt.arch == Archs.PN:
+        regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Sym:
+        regressor = PointNetRegressionSym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_FC4:
+        regressor = PointNetRegressionFC4(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_FC4_Sym:
+        regressor = PointNetRegressionFC4Sym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_FC45:
+        regressor = PointNetRegressionFC45(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_FC45_Sym:
+        regressor = PointNetRegressionFC45Sym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Small_3L:
+        regressor = PointNetRegressionSmall3Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Small_4L:
+        regressor = PointNetRegressionSmall4Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Half:
+        regressor = PointNetRegressionHalf(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    else:
+        print('Unknown architecture specified')
+        sys.exit(0)
+
     regressor.load_state_dict(torch.load(opt.model))
     regressor.cuda()
     regressor = regressor.eval()
@@ -259,25 +298,25 @@ if __name__ == '__main__':
     print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(
         np.mean(np.asarray(all_errors[error_def.ADD_CODE])),
         np.mean(np.asarray(all_errors[error_def.ADDS_CODE])),
-        np.mean(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
-        np.mean(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
-        np.mean(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
-        np.mean(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
-        np.mean(np.asarray(all_errors[error_def.ROTATION_CODE]))))
+        np.mean(np.asarray(all_errors[error_def.TRANSLATION_CODE])) * 1000,
+        np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_X_CODE]))),
+        np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_Y_CODE]))),
+        np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_Z_CODE]))),
+        np.degrees(np.mean(np.asarray(all_errors[error_def.ROTATION_CODE])))))
     print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(
         np.std(np.asarray(all_errors[error_def.ADD_CODE])),
         np.std(np.asarray(all_errors[error_def.ADDS_CODE])),
-        np.std(np.asarray(all_errors[error_def.TRANSLATION_CODE])),
-        np.std(np.asarray(all_errors[error_def.ROTATION_X_CODE])),
-        np.std(np.asarray(all_errors[error_def.ROTATION_Y_CODE])),
-        np.std(np.asarray(all_errors[error_def.ROTATION_Z_CODE])),
-        np.std(np.asarray(all_errors[error_def.ROTATION_CODE]))))
+        np.std(np.asarray(all_errors[error_def.TRANSLATION_CODE])) * 1000,
+        np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_X_CODE]))),
+        np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_Y_CODE]))),
+        np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_Z_CODE]))),
+        np.degrees(np.std(np.asarray(all_errors[error_def.ROTATION_CODE])))))
 
     evals = error_def.eval_grasps(all_errors, add_threshold, adds_threshold,
                                   (translation_threshold, rotation_threshold))
-    print('\n--- FINAL CORRECT ({}) ---'.format(len(all_errors[error_def.ADDS_CODE])))
+    print('--- FINAL CORRECT ({}) ---'.format(len(all_errors[error_def.ADDS_CODE])))
     print('ADD\tADDS\tT/R\tT/Rxyz')
-    print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(evals[0][1], evals[1][1], evals[2][1], evals[3][1]))
+    print('{}\t{}\t{}\t{}\n'.format(evals[0][1], evals[1][1], evals[2][1], evals[3][1]))
     print('--- FINAL ACCURACY ---')
     print('ADD\tADDS\tT/R\tT/Rxyz')
     print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(evals[0][0], evals[1][0], evals[2][0], evals[3][0]))
