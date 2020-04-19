@@ -545,9 +545,9 @@ class PointNetRegressionSmall4Layers(nn.Module):
         return x
 
 
-class PointNetHalf(nn.Module):
+class PointNetRegressionHalf(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
-        super(PointNetHalf, self).__init__()
+        super(PointNetRegressionHalf, self).__init__()
         self.dropout_p = dropout_p
         self.avg_pool = avg_pool
 
