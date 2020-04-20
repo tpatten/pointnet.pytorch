@@ -26,6 +26,7 @@ class Archs(IntEnum):
     PN_Small_3L = 7
     PN_Small_4L = 8
     PN_Half = 9
+    PN_Half_FC4 = 10
 
 
 class STN3d(nn.Module):
@@ -587,24 +588,73 @@ class PointNetRegressionHalf(nn.Module):
         return x
 
 
+class PointNetRegressionHalfFC4(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionHalfFC4, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(3, 32, 1)
+        self.conv2 = torch.nn.Conv1d(32, 64, 1)
+        self.conv3 = torch.nn.Conv1d(64, 512, 1)
+        self.bnf1 = nn.BatchNorm1d(32)
+        self.bnf2 = nn.BatchNorm1d(64)
+        self.bnf3 = nn.BatchNorm1d(512)
+
+        self.fc1 = nn.Linear(512, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, 128)
+        self.fc4 = nn.Linear(128, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(256)
+        self.bn2 = nn.BatchNorm1d(128)
+        self.bn3 = nn.BatchNorm1d(128)
+
+    def forward(self, x):
+        # Generate feature
+        x = F.relu(self.bnf1(self.conv1(x)))
+        x = F.relu(self.bnf2(self.conv2(x)))
+        x = self.bnf3(self.conv3(x))  # Add ReLu here?
+        if self.avg_pool:
+            x = torch.mean(x, 2, keepdim=True)
+        else:
+            x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 512)
+
+        # Fully connected layers
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.relu(self.bn2(self.fc2(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn3(self.dropout(self.fc3(x))))
+        else:
+            x = F.relu(self.bn3(self.fc3(x)))
+        x = self.fc4(x)
+        return x
+
+
 def compute_loss(prediction, target, offset, dist, points, loss_type=MSE_LOSS_CODE, independent_components=False,
-                 lc_weights=[1. / 3., 1. / 3., 1. / 3.], closing_symmetry=True, reduction='mean'):
+                 lc_weights=[1. / 3., 1. / 3., 1. / 3.], closing_symmetry=True, reduction='mean', rot_as_mat=False):
     if loss_type == MODEL_LOSS_CODE:
         return model_loss(prediction, target, offset, dist, points, closing_symmetry=closing_symmetry)
     else:
         if loss_type == L1_LOSS_CODE:
             return l1_loss(prediction, target, independent_components=independent_components, lc_weights=lc_weights,
-                           closing_symmetry=closing_symmetry, reduction=reduction)
+                           closing_symmetry=closing_symmetry, reduction=reduction, rot_as_mat=rot_as_mat)
         elif loss_type == SMOOTH_L1_LOSS_CODE:
             return smooth_l1_loss(prediction, target, independent_components=independent_components,
-                                  lc_weights=lc_weights, closing_symmetry=closing_symmetry, reduction=reduction)
+                                  lc_weights=lc_weights, closing_symmetry=closing_symmetry, reduction=reduction,
+                                  rot_as_mat=rot_as_mat)
         else:
             return mse_loss(prediction, target, independent_components=independent_components, lc_weights=lc_weights,
-                            closing_symmetry=closing_symmetry, reduction=reduction)
+                            closing_symmetry=closing_symmetry, reduction=reduction, rot_as_mat=rot_as_mat)
 
 
 def mse_loss(prediction, target, independent_components=False, lc_weights=[1./3., 1./3., 1./3.],
-             closing_symmetry=True, reduction='mean'):
+             closing_symmetry=True, reduction='mean', rot_as_mat=False):
+    if rot_as_mat:
+        return mse_loss_mat(prediction, target, lc_weights=[0.5, 0.5], closing_symmetry=closing_symmetry,
+                            reduction=reduction)
     if independent_components:
         loss_translation = F.mse_loss(prediction[:, 0:3], target[:, 0:3], reduction='sum')
         loss_approach = F.mse_loss(prediction[:, 3:6], target[:, 3:6], reduction='sum')
@@ -626,8 +676,32 @@ def mse_loss(prediction, target, independent_components=False, lc_weights=[1./3.
     return loss
 
 
+def mse_loss_mat(prediction, target, lc_weights=[0.5, 0.5],
+                 closing_symmetry=True, reduction='mean'):
+    loss_translation = F.mse_loss(prediction[:, 0:3], target[:, 0:3], reduction='sum')
+    prediction_matrix = direction_to_matrix(prediction[:, 3:9])
+    target_matrix = direction_to_matrix(target[:, 3:9])
+    loss_orientation = 0
+    if not closing_symmetry:
+        loss_orientation = F.mse_loss(prediction_matrix, target_matrix, reduction='sum')
+    else:
+        for i in range(prediction.size()[0]):
+            loss_orientation += min(F.mse_loss(prediction_matrix[i, :], target_matrix[i, :], reduction='sum'),
+                                    F.mse_loss(prediction_matrix[i, :], -target_matrix[i, :], reduction='sum'))
+    loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_orientation
+    denom = 2.0
+    if reduction == 'mean':
+        denom *= prediction.size()[0]
+    loss = loss / denom
+
+    return loss
+
+
 def l1_loss(prediction, target, independent_components=False, lc_weights=[1./3., 1./3., 1./3.],
-            closing_symmetry=True, reduction='mean'):
+            closing_symmetry=True, reduction='mean', rot_as_mat=False):
+    if rot_as_mat:
+        return l1_loss_mat(prediction, target, lc_weights=[0.5, 0.5], closing_symmetry=closing_symmetry,
+                           reduction=reduction)
     if independent_components:
         loss_translation = F.l1_loss(prediction[:, 0:3], target[:, 0:3], reduction='sum')
         loss_approach = F.l1_loss(prediction[:, 3:6], target[:, 3:6], reduction='sum')
@@ -649,8 +723,32 @@ def l1_loss(prediction, target, independent_components=False, lc_weights=[1./3.,
     return loss
 
 
+def l1_loss_mat(prediction, target, lc_weights=[0.5, 0.5],
+                closing_symmetry=True, reduction='mean'):
+    loss_translation = F.l1_loss(prediction[:, 0:3], target[:, 0:3], reduction='sum')
+    prediction_matrix = direction_to_matrix(prediction[:, 3:9])
+    target_matrix = direction_to_matrix(target[:, 3:9])
+    loss_orientation = 0
+    if not closing_symmetry:
+        loss_orientation = F.l1_loss(prediction_matrix, target_matrix, reduction='sum')
+    else:
+        for i in range(prediction.size()[0]):
+            loss_orientation += min(F.l1_loss(prediction_matrix[i, :], target_matrix[i, :], reduction='sum'),
+                                    F.l1_loss(prediction_matrix[i, :], -target_matrix[i, :], reduction='sum'))
+    loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_orientation
+    denom = 2.0
+    if reduction == 'mean':
+        denom *= prediction.size()[0]
+    loss = loss / denom
+
+    return loss
+
+
 def smooth_l1_loss(prediction, target, independent_components=False, lc_weights=[1./3., 1./3., 1./3.],
-                   closing_symmetry=True, reduction='mean'):
+                   closing_symmetry=True, reduction='mean', rot_as_mat=False):
+    if rot_as_mat:
+        return smooth_l1_loss_mat(prediction, target, lc_weights=[0.5, 0.5], closing_symmetry=closing_symmetry,
+                                  reduction=reduction)
     if independent_components:
         loss_translation = F.smooth_l1_loss(prediction[:, 0:3], target[:, 0:3], reduction='sum')
         loss_approach = F.smooth_l1_loss(prediction[:, 3:6], target[:, 3:6], reduction='sum')
@@ -670,6 +768,37 @@ def smooth_l1_loss(prediction, target, independent_components=False, lc_weights=
         loss = F.smooth_l1_loss(prediction, target, reduction=reduction)
 
     return loss
+
+
+def smooth_l1_loss_mat(prediction, target, lc_weights=[0.5, 0.5],
+                       closing_symmetry=True, reduction='mean'):
+    loss_translation = F.smooth_l1_loss(prediction[:, 0:3], target[:, 0:3], reduction='sum')
+    prediction_matrix = direction_to_matrix(prediction[:, 3:9])
+    target_matrix = direction_to_matrix(target[:, 3:9])
+    loss_orientation = 0
+    if not closing_symmetry:
+        loss_orientation = F.smooth_l1_loss(prediction_matrix, target_matrix, reduction='sum')
+    else:
+        for i in range(prediction.size()[0]):
+            loss_orientation += min(F.smooth_l1_loss(prediction_matrix[i, :], target_matrix[i, :], reduction='sum'),
+                                    F.smooth_l1_loss(prediction_matrix[i, :], -target_matrix[i, :], reduction='sum'))
+    loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_orientation
+    denom = 2.0
+    if reduction == 'mean':
+        denom *= prediction.size()[0]
+    loss = loss / denom
+
+    return loss
+
+
+def direction_to_matrix(direction):
+    direction_mat = np.zeros((direction.size()[0], 9))
+    direction_np = prediction.data.cpu().numpy()
+
+    for i in range(prediction.size()[0]):
+        direction_mat[i, :] = error_def.to_rotation_matrix(direction_np[i, 3:9]).reshape(1, 9)
+
+    return torch.from_numpy(direction_np).float().cuda()
 
 
 def model_loss(prediction, target, offset, dist, points, closing_symmetry=True):

@@ -66,6 +66,8 @@ parser.add_argument(
 parser.add_argument(
     '--disable_global_augmentation', action='store_true', help='to turn off global data augmentation')
 parser.add_argument(
+    '--rotation_as_mat', action='store_true', help='compute rotation component of the loss using the 3x3 matrix')
+parser.add_argument(
     '--tensorboard', action='store_true', help="enable tensorboard")
 
 
@@ -146,6 +148,8 @@ if opt.weight_decay > 0.0:
 output_dir = output_dir + '_lr' + str(opt.learning_rate).replace('.', '-') +\
              '_ls' + str(opt.learning_step) + '_lg' + str(opt.learning_gamma).replace('.', '-')
 output_dir = output_dir + '_arch' + str(opt.arch)
+if opt.rotation_as_mat:
+    output_dir += 'rotAsMat'
 print('Output directory\n{}'.format(output_dir))
 
 if opt.save_model:
@@ -173,6 +177,8 @@ elif opt.arch == Archs.PN_Small_4L:
     regressor = PointNetRegressionSmall4Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
 elif opt.arch == Archs.PN_Half:
     regressor = PointNetRegressionHalf(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+elif opt.arch == Archs.PN_Half_FC4:
+    regressor = PointNetRegressionHalfFC4(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
 else:
     print('Unknown architecture specified')
     sys.exit(0)
@@ -219,7 +225,8 @@ for epoch in range(start_epoch, opt.nepoch):
         # Compute loss value
         loss = compute_loss(pred, target, offset, dist, gripper_pts, loss_type=loss_type,
                             independent_components=opt.splitloss, lc_weights=opt.lc_weights,
-                            closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
+                            closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction,
+                            rot_as_mat=opt.rotation_as_mat)
 
         # Backprop
         loss.backward()
@@ -250,7 +257,8 @@ for epoch in range(start_epoch, opt.nepoch):
             pred = regressor(points)
             loss_test = compute_loss(pred, target, offset, dist, gripper_pts, loss_type=loss_type,
                                      independent_components=opt.splitloss, lc_weights=opt.lc_weights,
-                                     closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction)
+                                     closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction,
+                                     rot_as_mat=opt.rotation_as_mat)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
             offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
@@ -273,7 +281,11 @@ for epoch in range(start_epoch, opt.nepoch):
 
     # Only keep every 10th
     if opt.save_model and epoch > 0 and (epoch - 1) % 10 != 0:
-        os.remove('%s/%s_%d.pth' % (output_dir, output_dir, epoch - 1))
+        try:
+            os.remove('%s/%s_%d.pth' % (output_dir, output_dir, epoch - 1))
+        except OSError:
+            print('Failed to remove checkpoint\n{}'.format('%s/%s_%d.pth' % (output_dir, output_dir, epoch - 1)))
+            pass
 
     # To tensorboard
     if opt.tensorboard:
@@ -285,13 +297,13 @@ for epoch in range(start_epoch, opt.nepoch):
         tensorboard_writer.add_scalar('Loss/test', epoch_loss[1], epoch)
         tensorboard_writer.add_scalar('Accuracy/train', epoch_accuracy[0], epoch)
         tensorboard_writer.add_scalar('Accuracy/test', epoch_accuracy[1], epoch)
-        #tensorboard_writer.add_scalars('Loss', {'train': epoch_loss[0], 'test': epoch_loss[1]}, epoch)
-        #tensorboard_writer.add_scalars('Accuracy', {'train': epoch_accuracy[0], 'test': epoch_accuracy[1]}, epoch)
-        #for tag, value in regressor.named_parameters():
-        #    tag = tag.replace('.', '/')
-        #    tensorboard_writer.add_histogram(tag, value.data.cpu().numpy(), epoch)
-        #    if value.grad is not None:
-        #        tensorboard_writer.add_histogram(tag + '/grad', value.grad.cpu().numpy(), epoch)
+        # tensorboard_writer.add_scalars('Loss', {'train': epoch_loss[0], 'test': epoch_loss[1]}, epoch)
+        # tensorboard_writer.add_scalars('Accuracy', {'train': epoch_accuracy[0], 'test': epoch_accuracy[1]}, epoch)
+        # for tag, value in regressor.named_parameters():
+        #     tag = tag.replace('.', '/')
+        #     tensorboard_writer.add_histogram(tag, value.data.cpu().numpy(), epoch)
+        #     if value.grad is not None:
+        #         tensorboard_writer.add_histogram(tag + '/grad', value.grad.cpu().numpy(), epoch)
 
 if opt.tensorboard:
     # Close the tensor board writer
