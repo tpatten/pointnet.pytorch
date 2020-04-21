@@ -27,6 +27,7 @@ class Archs(IntEnum):
     PN_Small_4L = 8
     PN_Half = 9
     PN_Half_FC4 = 10
+    PN_FC4_256 = 11
 
 
 class STN3d(nn.Module):
@@ -623,6 +624,33 @@ class PointNetRegressionHalfFC4(nn.Module):
         x = x.view(-1, 512)
 
         # Fully connected layers
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.relu(self.bn2(self.fc2(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn3(self.dropout(self.fc3(x))))
+        else:
+            x = F.relu(self.bn3(self.fc3(x)))
+        x = self.fc4(x)
+        return x
+
+
+class PointNetRegressionFC4_256(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionFC4_256, self).__init__()
+        self.dropout_p = dropout_p
+        self.feat = PointNetfeat_custom(avg_pool=avg_pool)
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 256)
+        self.fc4 = nn.Linear(256, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.bn3 = nn.BatchNorm1d(256)
+
+    def forward(self, x):
+        x, _, _ = self.feat(x)
         x = F.relu(self.bn1(self.fc1(x)))
         x = F.relu(self.bn2(self.fc2(x)))
         if self.dropout_p > 0.0:

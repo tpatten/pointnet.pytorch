@@ -24,78 +24,67 @@ translation_threshold = 0.05
 rotation_threshold = np.radians(15)
 
 
-def get_arguments_from_filename(filename):
+def parse_filename(filename):
     # Output is a dictionary
     f_args = {}
     sub_str = copy.deepcopy(filename)
     # Subset is the first
     idx = sub_str.find('_')
     f_args['data_subset'] = sub_str[0:idx]
-    #sub_str = sub_str[idx + 1:]
     # Batch is the second
     idx = sub_str.find('batch')
-    idx2 = sub_str.find('_')
+    idx2 = sub_str.find('_', idx)
     f_args['batch_size'] = int(sub_str[idx + 5:idx2])
-    #sub_str = sub_str[idx2 + 1:]
     # Epoch is the third
     idx = sub_str.find('nEpoch')
-    idx2 = sub_str.find('_')
+    idx2 = sub_str.find('_', idx)
     f_args['nEpoch'] = int(sub_str[idx + 6: idx2])
-    #sub_str = sub_str[idx2 + 1:]
 
     # Get either modelLoss of regLoss
     idx = sub_str.find('regLoss')
     if idx != -1:
         f_args['model_loss'] = False
-        #sub_str = sub_str[idx + 8:]
     else:
         f_args['model_loss'] = True
-        #sub_str = sub_str[idx + 10:]
 
     # Check if dropout
     f_args['dropout_p'] = 0.0
     idx = sub_str.find('dropout')
     if idx != -1:
-        idx2 = sub_str.find('_')
+        idx2 = sub_str.find('_', idx)
         dropout_p = sub_str[idx + 7:idx2]
         dropout_p = dropout_p.replace('-', '.')
         f_args['dropout_p'] = float(dropout_p)
-        #sub_str = sub_str[idx2 + 1:]
 
     # Check if augmentation
     f_args['data_augmentation'] = False
     idx = sub_str.find('augmentation')
     if idx != -1:
         f_args['data_augmentation'] = True
-        #sub_str = sub_str[idx + 13:]
 
     # Check if split loss
     f_args['splitloss'] = False
     idx = sub_str.find('splitLoss')
     if idx != -1:
         f_args['splitloss'] = True
-        #sub_str = sub_str[idx + 10:]
 
     # Check if symmetry
     f_args['closing_symmetry'] = False
     idx = sub_str.find('symmetry')
     if idx != -1:
         f_args['closing_symmetry'] = True
-        #sub_str = sub_str[idx + 9:]
 
     # Check if flip closing angle
     f_args['randomly_flip_closing_angle'] = False
     idx = sub_str.find('rFlipClAng')
     if idx != -1:
         f_args['randomly_flip_closing_angle'] = True
-        #sub_str = sub_str[idx + 11:]
 
     # Check if wrist centered
     f_args['center_to_wrist_joint'] = False
     idx = sub_str.find('wristCentered')
     if idx != -1:
         f_args['center_to_wrist_joint'] = True
-        #sub_str = sub_str[idx + 15:]
 
     # Check if average pool is selected
     f_args['average_pool'] = False
@@ -107,7 +96,7 @@ def get_arguments_from_filename(filename):
     f_args['arch'] = Archs.PN
     idx = sub_str.find('arch')
     if idx != -1:
-        idx2 = sub_str.find('_')
+        idx2 = sub_str.find('_', idx)
         f_args['arch'] = int(sub_str[idx + 4: idx2])
 
     return f_args
@@ -159,7 +148,7 @@ if __name__ == '__main__':
         '--visualize', action='store_true', help='visualize the predicted grasp pose')
 
     opt = parser.parse_args()
-    f_args = get_arguments_from_filename(os.path.basename(opt.model))
+    f_args = parse_filename(os.path.basename(opt.model))
     opt.batch_size = f_args['batch_size']
     opt.lc_weights = [1. / 3., 1. / 3., 1. / 3.]
     opt.loss_reduction = 'mean'  # 'mean' or 'sum'
@@ -168,6 +157,7 @@ if __name__ == '__main__':
     opt.data_subset_train = f_args['data_subset']
     if opt.data_subset_test == '':
         opt.data_subset_test = f_args['data_subset']
+    opt.dropout_p = f_args['dropout_p']
     opt.randomly_flip_closing_angle = f_args['randomly_flip_closing_angle']
     opt.center_to_wrist_joint = f_args['center_to_wrist_joint']
     opt.average_pool = f_args['average_pool']
@@ -215,6 +205,8 @@ if __name__ == '__main__':
         regressor = PointNetRegressionHalf(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
     elif opt.arch == Archs.PN_Half_FC4:
         regressor = PointNetRegressionHalfFC4(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == PN_FC4_256:
+        regressor = PointNetRegressionFC4_256(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
     else:
         print('Unknown architecture specified')
         sys.exit(0)

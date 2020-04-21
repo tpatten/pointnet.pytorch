@@ -179,6 +179,8 @@ elif opt.arch == Archs.PN_Half:
     regressor = PointNetRegressionHalf(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
 elif opt.arch == Archs.PN_Half_FC4:
     regressor = PointNetRegressionHalfFC4(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+elif opt.arch == PN_FC4_256:
+    regressor = PointNetRegressionFC4_256(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
 else:
     print('Unknown architecture specified')
     sys.exit(0)
