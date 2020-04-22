@@ -32,15 +32,6 @@ def to_transform(vec9, offset, dist):
     translation = copy.deepcopy(vec9[0:3])
     translation *= dist
     translation += offset.flatten()
-    # z_axis = copy.deepcopy(vec9[3:6])
-    # z_axis /= np.linalg.norm(z_axis)
-    # y_axis = copy.deepcopy(vec9[6:9])
-    # y_axis /= np.linalg.norm(y_axis)
-    # x_axis = np.cross(y_axis, z_axis)
-    # rot = np.eye(3)
-    # rot[:, 0] = x_axis
-    # rot[:, 1] = y_axis
-    # rot[:, 2] = z_axis
     rot = to_rotation_matrix(vec9[3:9])
 
     transform = np.eye(4)

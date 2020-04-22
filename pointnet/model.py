@@ -28,6 +28,8 @@ class Archs(IntEnum):
     PN_Half = 9
     PN_Half_FC4 = 10
     PN_FC4_256 = 11
+    PN_LReLu = 12
+    PN_Half_LReLu = 13
 
 
 class STN3d(nn.Module):
@@ -232,6 +234,7 @@ def feature_transform_regularizer(trans):
     return loss
 
 
+# PN = 1
 class PointNetRegression(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegression, self).__init__()
@@ -256,6 +259,7 @@ class PointNetRegression(nn.Module):
         return x
 
 
+# PN_Sym = 2
 class PointNetRegressionSym(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegressionSym, self).__init__()
@@ -298,6 +302,7 @@ class PointNetRegressionSym(nn.Module):
         return x
 
 
+# PN_FC4 = 3
 class PointNetRegressionFC4(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegressionFC4, self).__init__()
@@ -325,6 +330,7 @@ class PointNetRegressionFC4(nn.Module):
         return x
 
 
+# PN_FC4_Sym = 4
 class PointNetRegressionFC4Sym(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegressionFC4Sym, self).__init__()
@@ -373,6 +379,7 @@ class PointNetRegressionFC4Sym(nn.Module):
         return x
 
 
+# PN_FC45 = 5
 class PointNetRegressionFC45(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegressionFC45, self).__init__()
@@ -403,6 +410,7 @@ class PointNetRegressionFC45(nn.Module):
         return x
 
 
+# PN_FC45_Sym = 6
 class PointNetRegressionFC45Sym(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegressionFC45Sym, self).__init__()
@@ -457,6 +465,7 @@ class PointNetRegressionFC45Sym(nn.Module):
         return x
 
 
+# PN_Small_3L = 7
 class PointNetRegressionSmall3Layers(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegressionSmall3Layers, self).__init__()
@@ -499,6 +508,7 @@ class PointNetRegressionSmall3Layers(nn.Module):
         return x
 
 
+# PN_Small_4L = 8
 class PointNetRegressionSmall4Layers(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegressionSmall4Layers, self).__init__()
@@ -547,6 +557,7 @@ class PointNetRegressionSmall4Layers(nn.Module):
         return x
 
 
+# PN_Half = 9
 class PointNetRegressionHalf(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegressionHalf, self).__init__()
@@ -589,6 +600,7 @@ class PointNetRegressionHalf(nn.Module):
         return x
 
 
+# PN_Half_FC4 = 10
 class PointNetRegressionHalfFC4(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegressionHalfFC4, self).__init__()
@@ -634,6 +646,7 @@ class PointNetRegressionHalfFC4(nn.Module):
         return x
 
 
+# PN_FC4_256 = 11
 class PointNetRegressionFC4_256(nn.Module):
     def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
         super(PointNetRegressionFC4_256, self).__init__()
@@ -658,6 +671,92 @@ class PointNetRegressionFC4_256(nn.Module):
         else:
             x = F.relu(self.bn3(self.fc3(x)))
         x = self.fc4(x)
+        return x
+
+
+# PN_LReLu = 12
+class PointNetRegressionLeakyReLu(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionLeakyReLu, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(3, 64, 1)
+        self.conv2 = torch.nn.Conv1d(64, 128, 1)
+        self.conv3 = torch.nn.Conv1d(128, 1024, 1)
+        self.bnf1 = nn.BatchNorm1d(64)
+        self.bnf2 = nn.BatchNorm1d(128)
+        self.bnf3 = nn.BatchNorm1d(1024)
+
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+
+    def forward(self, x):
+        # Generate feature
+        x = F.leaky_relu(self.bnf1(self.conv1(x)))
+        x = F.leaky_relu(self.bnf2(self.conv2(x)))
+        x = self.bnf3(self.conv3(x))  # Add ReLu here?
+        if self.avg_pool:
+            x = torch.mean(x, 2, keepdim=True)
+        else:
+            x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 1024)
+
+        # Fully connected layers
+        x = F.leaky_relu(self.bn1(self.fc1(x)))
+        if self.dropout_p > 0.0:
+            x = F.leaky_relu(self.bn2(self.dropout(self.fc2(x))))
+        else:
+            x = F.leaky_relu(self.bn2(self.fc2(x)))
+        x = self.fc3(x)
+        return x
+
+
+# PN_Half_LReLu = 13
+class PointNetRegressionHalfLeakyReLu(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionHalfLeakyReLu, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(3, 32, 1)
+        self.conv2 = torch.nn.Conv1d(32, 64, 1)
+        self.conv3 = torch.nn.Conv1d(64, 512, 1)
+        self.bnf1 = nn.BatchNorm1d(32)
+        self.bnf2 = nn.BatchNorm1d(64)
+        self.bnf3 = nn.BatchNorm1d(512)
+
+        self.fc1 = nn.Linear(512, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(256)
+        self.bn2 = nn.BatchNorm1d(128)
+
+    def forward(self, x):
+        # Generate feature
+        x = F.leaky_relu(self.bnf1(self.conv1(x)))
+        x = F.leaky_relu(self.bnf2(self.conv2(x)))
+        x = self.bnf3(self.conv3(x))  # Add ReLu here?
+        if self.avg_pool:
+            x = torch.mean(x, 2, keepdim=True)
+        else:
+            x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 512)
+
+        # Fully connected layers
+        x = F.leaky_relu(self.bn1(self.fc1(x)))
+        if self.dropout_p > 0.0:
+            x = F.leaky_relu(self.bn2(self.dropout(self.fc2(x))))
+        else:
+            x = F.leaky_relu(self.bn2(self.fc2(x)))
+        x = self.fc3(x)
         return x
 
 
