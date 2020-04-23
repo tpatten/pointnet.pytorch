@@ -920,10 +920,10 @@ def smooth_l1_loss_mat(prediction, target, lc_weights=[0.5, 0.5],
 
 def direction_to_matrix(direction):
     direction_mat = np.zeros((direction.size()[0], 9))
-    direction_np = prediction.data.cpu().numpy()
+    direction_np = direction.data.cpu().numpy()
 
-    for i in range(prediction.size()[0]):
-        direction_mat[i, :] = error_def.to_rotation_matrix(direction_np[i, 3:9]).reshape(1, 9)
+    for i in range(direction.size()[0]):
+        direction_mat[i, :] = error_def.to_rotation_matrix(direction_np[i, :]).reshape(1, 9)
 
     return torch.from_numpy(direction_np).float().cuda()
 

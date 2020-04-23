@@ -1,7 +1,7 @@
 DATASET=/home/tpatten/v4rtemp/datasets/HandTracking/HO3D_v2/
 DATA_SUBSET=XABF
 NEPOCH=85
-BACTH_SIZE=32
+BACTH_SIZE=64
 LEARN_RATE=0.01
 DROPOUT_P=0.3
 

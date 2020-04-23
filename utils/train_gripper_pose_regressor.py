@@ -149,7 +149,7 @@ output_dir = output_dir + '_lr' + str(opt.learning_rate).replace('.', '-') +\
              '_ls' + str(opt.learning_step) + '_lg' + str(opt.learning_gamma).replace('.', '-')
 output_dir = output_dir + '_arch' + str(opt.arch)
 if opt.rotation_as_mat:
-    output_dir += 'rotAsMat'
+    output_dir += '_rotAsMat'
 print('Output directory\n{}'.format(output_dir))
 
 if opt.save_model:
@@ -192,10 +192,10 @@ else:
 start_epoch = 0
 if opt.model != '':
     regressor.load_state_dict(torch.load(opt.model))
-    basename = os.path.basename(opt.model)
-    filename, _ = os.path.splitext(basename)
-    idx = filename.rfind('_')
-    start_epoch = int(filename[idx + 1:]) + 1
+    # basename = os.path.basename(opt.model)
+    # filename, _ = os.path.splitext(basename)
+    # idx = filename.rfind('_')
+    # start_epoch = int(filename[idx + 1:]) + 1
 
 optimizer = optim.Adam(regressor.parameters(), lr=opt.learning_rate, betas=(0.9, 0.999), weight_decay=opt.weight_decay)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=opt.learning_step, gamma=opt.learning_gamma)
