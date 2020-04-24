@@ -952,15 +952,15 @@ def model_loss(prediction, target, offset, dist, points, closing_symmetry=True):
 
 
 def normalize_direction(tensor9):
-    z_axis = tensor9[:, 3:6]
-    print(z_axis)
-    print(z_axis.size())
-    print(torch.norm(z_axis))
-    print(torch.norm(z_axis).size())
-    z_axis /= torch.norm(z_axis)
-    y_axis = tensor9[:, 6:9]
-    y_axis = y_axis - torch.bmm(z_axis, y_axis) * z_axis
-    y_axis /= torch.norm(y_axis)
+    z_axis = tensor9[:, 3:6].clone()
+    z_norm = torch.norm(z_axis, p=2, dim=1)
+    z_axis = z_axis / z_norm[:, None]
+
+    y_axis = tensor9[:, 6:9].clone()
+    z_dot_y = torch.sum(z_axis * y_axis, dim=1)
+    y_axis = y_axis - z_dot_y[:, None] * z_axis
+    y_norm = torch.norm(y_axis, p=2, dim=1)
+    y_axis = y_axis / y_norm[:, None]
 
     tensor9[:, 3:6] = z_axis
     tensor9[:, 6:9] = y_axis
