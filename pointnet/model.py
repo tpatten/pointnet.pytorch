@@ -951,6 +951,23 @@ def model_loss(prediction, target, offset, dist, points, closing_symmetry=True):
     return loss
 
 
+def normalize_direction(tensor9):
+    z_axis = tensor9[:, 3:6]
+    print(z_axis)
+    print(z_axis.size())
+    print(torch.norm(z_axis))
+    print(torch.norm(z_axis).size())
+    z_axis /= torch.norm(z_axis)
+    y_axis = tensor9[:, 6:9]
+    y_axis = y_axis - torch.bmm(z_axis, y_axis) * z_axis
+    y_axis /= torch.norm(y_axis)
+
+    tensor9[:, 3:6] = z_axis
+    tensor9[:, 6:9] = y_axis
+
+    return tensor9
+
+
 if __name__ == '__main__':
     sim_data = Variable(torch.rand(32, 3, 2500))
     trans = STN3d()

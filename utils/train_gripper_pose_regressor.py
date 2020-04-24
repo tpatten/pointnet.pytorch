@@ -261,6 +261,8 @@ for epoch in range(start_epoch, opt.nepoch):
             points, target = points.cuda(), target.cuda()
             regressor = regressor.eval()
             pred = regressor(points)
+            pred = normalize_direction(pred)
+            target = normalize_direction(target)
             loss_test = compute_loss(pred, target, offset, dist, gripper_pts, loss_type=loss_type,
                                      independent_components=opt.splitloss, lc_weights=opt.lc_weights,
                                      closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction,

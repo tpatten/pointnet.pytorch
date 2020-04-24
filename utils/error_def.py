@@ -17,7 +17,7 @@ def to_rotation_matrix(vec6):
     z_axis = copy.deepcopy(vec6[0:3])
     z_axis /= np.linalg.norm(z_axis)
     y_axis = copy.deepcopy(vec6[3:6])
-    # y_axis = y_axis - np.dot(z_axis, y_axis) * z_axis
+    y_axis = y_axis - np.dot(z_axis, y_axis) * z_axis
     y_axis /= np.linalg.norm(y_axis)
     x_axis = np.cross(y_axis, z_axis)
     rot = np.eye(3)
