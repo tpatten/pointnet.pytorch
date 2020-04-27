@@ -761,24 +761,27 @@ class PointNetRegressionHalfLeakyReLu(nn.Module):
 
 
 def compute_loss(prediction, target, offset, dist, points, loss_type=MSE_LOSS_CODE, independent_components=False,
-                 lc_weights=[1. / 3., 1. / 3., 1. / 3.], closing_symmetry=True, reduction='mean', rot_as_mat=False):
+                 lc_weights=[1./3., 1./3., 1./3.], closing_symmetry=True, reduction='mean', rot_as_mat=False,
+                 yaxis_norm=False):
     if loss_type == MODEL_LOSS_CODE:
         return model_loss(prediction, target, offset, dist, points, closing_symmetry=closing_symmetry)
     else:
         if loss_type == L1_LOSS_CODE:
             return l1_loss(prediction, target, independent_components=independent_components, lc_weights=lc_weights,
-                           closing_symmetry=closing_symmetry, reduction=reduction, rot_as_mat=rot_as_mat)
+                           closing_symmetry=closing_symmetry, reduction=reduction, rot_as_mat=rot_as_mat,
+                           yaxis_norm=yaxis_norm)
         elif loss_type == SMOOTH_L1_LOSS_CODE:
             return smooth_l1_loss(prediction, target, independent_components=independent_components,
                                   lc_weights=lc_weights, closing_symmetry=closing_symmetry, reduction=reduction,
-                                  rot_as_mat=rot_as_mat)
+                                  rot_as_mat=rot_as_mat, yaxis_norm=yaxis_norm)
         else:
             return mse_loss(prediction, target, independent_components=independent_components, lc_weights=lc_weights,
-                            closing_symmetry=closing_symmetry, reduction=reduction, rot_as_mat=rot_as_mat)
+                            closing_symmetry=closing_symmetry, reduction=reduction, rot_as_mat=rot_as_mat,
+                            yaxis_norm=yaxis_norm)
 
 
 def mse_loss(prediction, target, independent_components=False, lc_weights=[1./3., 1./3., 1./3.],
-             closing_symmetry=True, reduction='mean', rot_as_mat=False):
+             closing_symmetry=True, reduction='mean', rot_as_mat=False, yaxis_norm=False):
     if rot_as_mat:
         return mse_loss_mat(prediction, target, lc_weights=[0.5, 0.5], closing_symmetry=closing_symmetry,
                             reduction=reduction)
@@ -792,11 +795,17 @@ def mse_loss(prediction, target, independent_components=False, lc_weights=[1./3.
             for i in range(prediction.size()[0]):
                 loss_closing += min(F.mse_loss(prediction[i, 6:9], target[i, 6:9], reduction='sum'),
                                     F.mse_loss(prediction[i, 6:9], -target[i, 6:9], reduction='sum'))
-        loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_approach + lc_weights[0] * loss_closing
-        denom = 3.0
-        if reduction == 'mean':
-            denom *= prediction.size()[0]
-        loss = loss / denom
+
+        if yaxis_norm:
+            loss_translation /= prediction.size()[0]
+            loss_approach /= prediction.size()[0]
+            loss_closing /= prediction.size()[0]
+        loss = lc_weights[0] * loss_translation + lc_weights[1] * loss_approach + lc_weights[2] * loss_closing
+        if not yaxis_norm:
+            denom = 3.0
+            if reduction == 'mean':
+                denom *= prediction.size()[0]
+            loss = loss / denom
     else:
         loss = F.mse_loss(prediction, target, reduction=reduction)
 
@@ -815,7 +824,7 @@ def mse_loss_mat(prediction, target, lc_weights=[0.5, 0.5],
         for i in range(prediction.size()[0]):
             loss_orientation += min(F.mse_loss(prediction_matrix[i, :], target_matrix[i, :], reduction='sum'),
                                     F.mse_loss(prediction_matrix[i, :], -target_matrix[i, :], reduction='sum'))
-    loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_orientation
+    loss = lc_weights[0] * loss_translation + lc_weights[1] * loss_orientation
     denom = 2.0
     if reduction == 'mean':
         denom *= prediction.size()[0]
@@ -825,7 +834,7 @@ def mse_loss_mat(prediction, target, lc_weights=[0.5, 0.5],
 
 
 def l1_loss(prediction, target, independent_components=False, lc_weights=[1./3., 1./3., 1./3.],
-            closing_symmetry=True, reduction='mean', rot_as_mat=False):
+            closing_symmetry=True, reduction='mean', rot_as_mat=False, yaxis_norm=False):
     if rot_as_mat:
         return l1_loss_mat(prediction, target, lc_weights=[0.5, 0.5], closing_symmetry=closing_symmetry,
                            reduction=reduction)
@@ -839,11 +848,17 @@ def l1_loss(prediction, target, independent_components=False, lc_weights=[1./3.,
             for i in range(prediction.size()[0]):
                 loss_closing += min(F.l1_loss(prediction[i, 6:9], target[i, 6:9], reduction='sum'),
                                     F.l1_loss(prediction[i, 6:9], -target[i, 6:9], reduction='sum'))
-        loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_approach + lc_weights[0] * loss_closing
-        denom = 3.0
-        if reduction == 'mean':
-            denom *= prediction.size()[0]
-        loss = loss / denom
+
+        if yaxis_norm:
+            loss_translation /= prediction.size()[0]
+            loss_approach /= prediction.size()[0]
+            loss_closing /= prediction.size()[0]
+        loss = lc_weights[0] * loss_translation + lc_weights[1] * loss_approach + lc_weights[2] * loss_closing
+        if not yaxis_norm:
+            denom = 3.0
+            if reduction == 'mean':
+                denom *= prediction.size()[0]
+            loss = loss / denom
     else:
         loss = F.l1_loss(prediction, target, reduction=reduction)
 
@@ -862,7 +877,7 @@ def l1_loss_mat(prediction, target, lc_weights=[0.5, 0.5],
         for i in range(prediction.size()[0]):
             loss_orientation += min(F.l1_loss(prediction_matrix[i, :], target_matrix[i, :], reduction='sum'),
                                     F.l1_loss(prediction_matrix[i, :], -target_matrix[i, :], reduction='sum'))
-    loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_orientation
+    loss = lc_weights[0] * loss_translation + lc_weights[1] * loss_orientation
     denom = 2.0
     if reduction == 'mean':
         denom *= prediction.size()[0]
@@ -872,7 +887,7 @@ def l1_loss_mat(prediction, target, lc_weights=[0.5, 0.5],
 
 
 def smooth_l1_loss(prediction, target, independent_components=False, lc_weights=[1./3., 1./3., 1./3.],
-                   closing_symmetry=True, reduction='mean', rot_as_mat=False):
+                   closing_symmetry=True, reduction='mean', rot_as_mat=False, yaxis_norm=False):
     if rot_as_mat:
         return smooth_l1_loss_mat(prediction, target, lc_weights=[0.5, 0.5], closing_symmetry=closing_symmetry,
                                   reduction=reduction)
@@ -886,11 +901,16 @@ def smooth_l1_loss(prediction, target, independent_components=False, lc_weights=
             for i in range(prediction.size()[0]):
                 loss_closing += min(F.smooth_l1_loss(prediction[i, 6:9], target[i, 6:9], reduction='sum'),
                                     F.smooth_l1_loss(prediction[i, 6:9], -target[i, 6:9], reduction='sum'))
-        loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_approach + lc_weights[0] * loss_closing
-        denom = 3.0
-        if reduction == 'mean':
-            denom *= prediction.size()[0]
-        loss = loss / denom
+        if yaxis_norm:
+            loss_translation /= prediction.size()[0]
+            loss_approach /= prediction.size()[0]
+            loss_closing /= prediction.size()[0]
+        loss = lc_weights[0] * loss_translation + lc_weights[1] * loss_approach + lc_weights[2] * loss_closing
+        if not yaxis_norm:
+            denom = 3.0
+            if reduction == 'mean':
+                denom *= prediction.size()[0]
+            loss = loss / denom
     else:
         loss = F.smooth_l1_loss(prediction, target, reduction=reduction)
 
@@ -909,7 +929,7 @@ def smooth_l1_loss_mat(prediction, target, lc_weights=[0.5, 0.5],
         for i in range(prediction.size()[0]):
             loss_orientation += min(F.smooth_l1_loss(prediction_matrix[i, :], target_matrix[i, :], reduction='sum'),
                                     F.smooth_l1_loss(prediction_matrix[i, :], -target_matrix[i, :], reduction='sum'))
-    loss = lc_weights[0] * loss_translation + lc_weights[0] * loss_orientation
+    loss = lc_weights[0] * loss_translation + lc_weights[1] * loss_orientation
     denom = 2.0
     if reduction == 'mean':
         denom *= prediction.size()[0]

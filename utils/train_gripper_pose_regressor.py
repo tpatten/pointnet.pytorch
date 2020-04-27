@@ -68,6 +68,8 @@ parser.add_argument(
 parser.add_argument(
     '--rotation_as_mat', action='store_true', help='compute rotation component of the loss using the 3x3 matrix')
 parser.add_argument(
+    '--yaxis_norm', action='store_true', help='normalize the y axis before computing loss and error')
+parser.add_argument(
     '--tensorboard', action='store_true', help="enable tensorboard")
 
 
@@ -150,6 +152,8 @@ output_dir = output_dir + '_lr' + str(opt.learning_rate).replace('.', '-') +\
 output_dir = output_dir + '_arch' + str(opt.arch)
 if opt.rotation_as_mat:
     output_dir += '_rotAsMat'
+if opt.yaxis_norm:
+    output_dir += '_yAxisNorm'
 print('Output directory\n{}'.format(output_dir))
 
 if opt.save_model:
@@ -229,12 +233,13 @@ for epoch in range(start_epoch, opt.nepoch):
         pred = regressor(points)
 
         # Compute loss value
-        pred = normalize_direction(pred)
-        target = normalize_direction(target)
+        if opt.yaxis_norm:
+            pred = normalize_direction(pred)
+            target = normalize_direction(target)
         loss = compute_loss(pred, target, offset, dist, gripper_pts, loss_type=loss_type,
                             independent_components=opt.splitloss, lc_weights=opt.lc_weights,
                             closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction,
-                            rot_as_mat=opt.rotation_as_mat)
+                            rot_as_mat=opt.rotation_as_mat, yaxis_norm=opt.yaxis_norm)
 
         # Backprop
         loss.backward()
@@ -263,12 +268,13 @@ for epoch in range(start_epoch, opt.nepoch):
             points, target = points.cuda(), target.cuda()
             regressor = regressor.eval()
             pred = regressor(points)
-            pred = normalize_direction(pred)
-            target = normalize_direction(target)
+            if opt.yaxis_norm:
+                pred = normalize_direction(pred)
+                target = normalize_direction(target)
             loss_test = compute_loss(pred, target, offset, dist, gripper_pts, loss_type=loss_type,
                                      independent_components=opt.splitloss, lc_weights=opt.lc_weights,
                                      closing_symmetry=opt.closing_symmetry, reduction=opt.loss_reduction,
-                                     rot_as_mat=opt.rotation_as_mat)
+                                     rot_as_mat=opt.rotation_as_mat, yaxis_norm=opt.yaxis_norm)
             targ_np = target.data.cpu().numpy()
             pred_np = pred.data.cpu().numpy()
             offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))
