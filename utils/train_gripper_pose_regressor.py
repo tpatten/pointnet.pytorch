@@ -6,7 +6,7 @@ import random
 import torch.optim as optim
 import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
-from pointnet.dataset import HO3DDataset
+from pointnet.dataset import HO3DDataset, JointSet
 from pointnet.model import *
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -70,6 +70,8 @@ parser.add_argument(
 parser.add_argument(
     '--yaxis_norm', action='store_true', help='normalize the y axis before computing loss and error')
 parser.add_argument(
+    '--joint_set', type=int, default=1, help='the pre-defined set of joints to use')
+parser.add_argument(
     '--tensorboard', action='store_true', help="enable tensorboard")
 
 
@@ -87,10 +89,14 @@ print("Random Seed: ", opt.manualSeed)
 random.seed(opt.manualSeed)
 torch.manual_seed(opt.manualSeed)
 
-dataset = HO3DDataset(root=opt.dataset, data_augmentation=opt.data_augmentation, subset_name=opt.data_subset,
-                      randomly_flip_closing_angle=opt.randomly_flip_closing_angle,
-                      center_to_wrist_joint=opt.center_to_wrist_joint,
-                      disable_global_augmentation=opt.disable_global_augmentation)
+dataset = HO3DDataset(
+    root=opt.dataset,
+    data_augmentation=opt.data_augmentation,
+    subset_name=opt.data_subset,
+    randomly_flip_closing_angle=opt.randomly_flip_closing_angle,
+    center_to_wrist_joint=opt.center_to_wrist_joint,
+    disable_global_augmentation=opt.disable_global_augmentation,
+    selected_joints=opt.joint_set)
 
 test_dataset = HO3DDataset(
     root=opt.dataset,
@@ -98,7 +104,8 @@ test_dataset = HO3DDataset(
     data_augmentation=False,
     subset_name=opt.data_subset,
     randomly_flip_closing_angle=opt.randomly_flip_closing_angle,
-    center_to_wrist_joint=opt.center_to_wrist_joint)
+    center_to_wrist_joint=opt.center_to_wrist_joint,
+    selected_joints=opt.joint_set)
 
 dataloader = torch.utils.data.DataLoader(
     dataset,
@@ -154,6 +161,8 @@ if opt.rotation_as_mat:
     output_dir += '_rotAsMat'
 if opt.yaxis_norm:
     output_dir += '_yAxisNorm'
+if not opt.joint_set == JointSet.FULL:
+    output_dir = output_dir + '_jointSet' + str(opt.joint_set)
 print('Output directory\n{}'.format(output_dir))
 
 if opt.save_model:
@@ -351,7 +360,7 @@ for i, data in tqdm(enumerate(testdataloader, 0)):
 
 print('\n--- FINAL ERRORS ---')
 print('ADD\tADDS\tT\tRx\tRy\tRz\tR')
-print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(
+print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(
     np.mean(np.asarray(all_errors[error_def.ADD_CODE])),
     np.mean(np.asarray(all_errors[error_def.ADDS_CODE])),
     np.mean(np.asarray(all_errors[error_def.TRANSLATION_CODE])) * 1000,

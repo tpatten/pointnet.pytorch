@@ -5,7 +5,7 @@ import sys
 import random
 import torch.optim as optim
 import torch.utils.data
-from pointnet.dataset import HO3DDataset
+from pointnet.dataset import HO3DDataset, JointSet
 from pointnet.model import *
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -99,6 +99,13 @@ def parse_filename(filename):
         idx2 = sub_str.find('_', idx)
         f_args['arch'] = int(sub_str[idx + 4: idx2])
 
+    # Get the joint set
+    f_args['joint_set'] = JointSet.FULL
+    idx = sub_str.find('jointSet')
+    if idx != -1:
+        idx2 = sub_str.find('_', idx)
+        f_args['joint_set'] = int(sub_str[idx + 8: idx2])
+
     return f_args
 
 
@@ -162,6 +169,7 @@ if __name__ == '__main__':
     opt.center_to_wrist_joint = f_args['center_to_wrist_joint']
     opt.average_pool = f_args['average_pool']
     opt.arch = f_args['arch']
+    opt.joint_set = f_args['joint_set']
     print(opt)
 
     blue = lambda x: '\033[94m' + x + '\033[0m'
@@ -177,7 +185,8 @@ if __name__ == '__main__':
         data_augmentation=False,
         subset_name=opt.data_subset_test,
         randomly_flip_closing_angle=opt.randomly_flip_closing_angle,
-        center_to_wrist_joint=opt.center_to_wrist_joint)
+        center_to_wrist_joint=opt.center_to_wrist_joint,
+        selected_joints=opt.joint_set)
 
     testdataloader = torch.utils.data.DataLoader(
             test_dataset,
@@ -293,7 +302,7 @@ if __name__ == '__main__':
 
     print('\n--- FINAL ERRORS ---')
     print('ADD\tADDS\tT\tRx\tRy\tRz\tR')
-    print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(
+    print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(
         np.mean(np.asarray(all_errors[error_def.ADD_CODE])),
         np.mean(np.asarray(all_errors[error_def.ADDS_CODE])),
         np.mean(np.asarray(all_errors[error_def.TRANSLATION_CODE])) * 1000,

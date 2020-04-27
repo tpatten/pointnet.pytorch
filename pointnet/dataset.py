@@ -12,10 +12,44 @@ import pickle
 import copy
 import random
 import transforms3d as tf3d
+from enum import IntEnum
 
 
 LEFT_TIP_IN_CLOUD = 3221
 RIGHT_TIP_IN_CLOUD = 5204
+
+
+# Enum for the different types of joint sets
+class JointSet(IntEnum):
+    FULL = 1
+    NO_TIPS = 2
+    ONLY_TIPS = 3
+    ONLY_TIPS_AND_WRIST = 4
+    NO_FIRST_JOINT = 5
+    ONLY_FIRST_JOINT = 6
+    ONLY_FIRST_JOINT_AND_WRIST = 7
+    NO_SECOND_JOINT = 8
+    ONLY_SECOND_JOINT = 9
+    ONLY_SECOND_JOINT_AND_WRIST = 10
+    NO_KNUCKLE = 11
+    ONLY_KNUCKLE = 12
+    ONLY_KNUCKLE_AND_WRIST = 13
+
+# Create the dictionary of joint sets
+joint_set_dict = {}
+joint_set_dict[JointSet.FULL] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+joint_set_dict[JointSet.NO_TIPS] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+joint_set_dict[JointSet.ONLY_TIPS] = [16, 17, 18, 19, 20]
+joint_set_dict[JointSet.ONLY_TIPS_AND_WRIST] = [0, 16, 17, 18, 19, 20]
+joint_set_dict[JointSet.NO_FIRST_JOINT] = [0, 1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17, 18, 19, 20]
+joint_set_dict[JointSet.ONLY_FIRST_JOINT] = [3, 6, 9, 12, 15]
+joint_set_dict[JointSet.ONLY_FIRST_JOINT_AND_WRIST] = [0, 3, 6, 9, 12, 15]
+joint_set_dict[JointSet.NO_SECOND_JOINT] = [0, 1, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 17, 18, 19, 20]
+joint_set_dict[JointSet.ONLY_SECOND_JOINT] = [2, 5, 8, 11, 14]
+joint_set_dict[JointSet.ONLY_SECOND_JOINT_AND_WRIST] = [0, 2, 5, 8, 11, 14]
+joint_set_dict[JointSet.NO_KNUCKLE] = [0, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 16, 17, 18, 19, 20]
+joint_set_dict[JointSet.ONLY_KNUCKLE] = [1, 4, 7, 10, 13]
+joint_set_dict[JointSet.ONLY_KNUCKLE_AND_WRIST] = [0, 1, 4, 7, 10, 13]
 
 
 def get_segmentation_classes(root):
@@ -216,13 +250,20 @@ class HO3DDataset(data.Dataset):
                  subset_name='ALL',
                  randomly_flip_closing_angle=False,
                  center_to_wrist_joint=False,
-                 disable_global_augmentation=False):
+                 disable_global_augmentation=False,
+                 selected_joints=1):
         self.root = root
         splitfile, split_root_name = self.get_split_file(split, subset_name)
         self.data_augmentation = data_augmentation
         self.randomly_flip_closing_angle = randomly_flip_closing_angle
         self.center_to_wrist_joint = center_to_wrist_joint
         self.disable_global_augmentation = disable_global_augmentation
+        self.selected_joints = selected_joints
+
+        self.exclude_indices = None
+        if selected_joints is not JointSet.FULL:
+            self.exclude_indices = np.setdiff1d(joint_set_dict[JointSet.FULL], joint_set_dict[selected_joints])
+            self.exclude_indices = np.sort(self.exclude_indices)[::-1].flatten()
 
         # Get the gripper model
         self.base_pcd = np.loadtxt(gripper_xyz)
@@ -253,6 +294,11 @@ class HO3DDataset(data.Dataset):
             except:
                 pickle_data = pickle.load(f)
         point_set = pickle_data['handJoints3D']
+
+        # Select the joint set
+        if self.exclude_indices is not None:
+            for i in self.exclude_indices:
+                np.delete(point_set, i, 0)
 
         # Get the gripper pose
         with open(fn[1], 'rb') as f:
