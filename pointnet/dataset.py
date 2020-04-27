@@ -298,7 +298,7 @@ class HO3DDataset(data.Dataset):
         # Select the joint set
         if self.exclude_indices is not None:
             for i in self.exclude_indices:
-                np.delete(point_set, i, 0)
+                point_set = np.delete(point_set, i, 0)
 
         # Get the gripper pose
         with open(fn[1], 'rb') as f:
