@@ -264,7 +264,7 @@ for epoch in range(start_epoch, opt.nepoch):
         targ_tfs = error_def.to_transform_batch(targ_np, offset_np, dist_np)
         pred_tfs = error_def.to_transform_batch(pred_np, offset_np, dist_np)
         errs = error_def.get_all_errors_batch(targ_tfs, pred_tfs, gripper_pts, all_errors)
-        evals = error_def.eval_grasps(errs, error_threshold, None, None)
+        evals = error_def.eval_grasps(errs, error_threshold, error_threshold, None)
 
         # Print to terminal
         print('[%d: %d/%d] train loss: %f accuracy: %f  (%f)' % (epoch, i, num_batch, loss.item(),
@@ -296,7 +296,7 @@ for epoch in range(start_epoch, opt.nepoch):
             targ_tfs = error_def.to_transform_batch(targ_np, offset_np, dist_np)
             pred_tfs = error_def.to_transform_batch(pred_np, offset_np, dist_np)
             errs = error_def.get_all_errors_batch(targ_tfs, pred_tfs, gripper_pts, all_errors)
-            evals_test = error_def.eval_grasps(errs, error_threshold, None, None)
+            evals_test = error_def.eval_grasps(errs, error_threshold, error_threshold, None)
 
             print('[%d: %d/%d] %s loss: %f accuracy: %f  (%f)' % (epoch, i, num_batch, blue('test'), loss_test.item(),
                                                                   evals_test[0][0], evals_test[1][0]))
