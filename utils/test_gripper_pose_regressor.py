@@ -99,6 +99,12 @@ def parse_filename(filename):
         idx2 = sub_str.find('_', idx)
         f_args['arch'] = int(sub_str[idx + 4: idx2])
 
+    # Check if y axis is normalized
+    f_args['yaxis_norm'] = False
+    idx = sub_str.find('yAxisNorm')
+    if idx != -1:
+        f_args['yaxis_norm'] = True
+
     # Get the joint set
     f_args['joint_set'] = JointSet.FULL
     idx = sub_str.find('jointSet')
@@ -169,6 +175,7 @@ if __name__ == '__main__':
     opt.center_to_wrist_joint = f_args['center_to_wrist_joint']
     opt.average_pool = f_args['average_pool']
     opt.arch = f_args['arch']
+    opt.yaxis_norm = f_args['yaxis_norm']
     opt.joint_set = f_args['joint_set']
     print(opt)
 
@@ -247,6 +254,9 @@ if __name__ == '__main__':
         points = points.transpose(2, 1)
         points, target = points.cuda(), target.cuda()
         pred = regressor(points)
+        if opt.yaxis_norm:
+            pred = normalize_direction(pred)
+            target = normalize_direction(target)
         targ_np = target.data.cpu().numpy()
         pred_np = pred.data.cpu().numpy()
         offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))

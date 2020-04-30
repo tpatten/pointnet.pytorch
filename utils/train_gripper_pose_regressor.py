@@ -163,6 +163,7 @@ if opt.yaxis_norm:
     output_dir += '_yAxisNorm'
 if not opt.joint_set == JointSet.FULL:
     output_dir = output_dir + '_jointSet' + str(opt.joint_set)
+output_dir += '_att2'
 print('Output directory\n{}'.format(output_dir))
 
 if opt.save_model:
@@ -218,13 +219,14 @@ num_batch = len(dataset) / opt.batch_size
 
 all_errors = {}
 all_errors[error_def.ADD_CODE] = []
+all_errors[error_def.ADDS_CODE] = []
 
 if opt.tensorboard:
     tensorboard_writer = SummaryWriter('/home/tpatten/logs/' + output_dir)
 
 for epoch in range(start_epoch, opt.nepoch):
     epoch_loss = [0, 0]
-    epoch_accuracy = [0, 0]
+    epoch_accuracy = [0, 0, 0, 0]
     num_tests = 0
     if epoch > start_epoch:
         scheduler.step()
@@ -265,9 +267,11 @@ for epoch in range(start_epoch, opt.nepoch):
         evals = error_def.eval_grasps(errs, error_threshold, None, None)
 
         # Print to terminal
-        print('[%d: %d/%d] train loss: %f accuracy: %f' % (epoch, i, num_batch, loss.item(), evals[0][0]))
+        print('[%d: %d/%d] train loss: %f accuracy: %f  (%f)' % (epoch, i, num_batch, loss.item(),
+                                                                 evals[0][0], evals[1][0]))
         epoch_loss[0] += loss.item()
         epoch_accuracy[0] += evals[0][0]
+        epoch_accuracy[1] += evals[1][0]
 
         # Check accuracy on test set (validation)
         if i % 10 == 0:
@@ -294,10 +298,11 @@ for epoch in range(start_epoch, opt.nepoch):
             errs = error_def.get_all_errors_batch(targ_tfs, pred_tfs, gripper_pts, all_errors)
             evals_test = error_def.eval_grasps(errs, error_threshold, None, None)
 
-            print('[%d: %d/%d] %s loss: %f accuracy: %f' % (epoch, i, num_batch, blue('test'),
-                                                            loss_test.item(), evals_test[0][0]))
+            print('[%d: %d/%d] %s loss: %f accuracy: %f  (%f)' % (epoch, i, num_batch, blue('test'), loss_test.item(),
+                                                                  evals_test[0][0], evals_test[1][0]))
             epoch_loss[1] += loss_test.item()
-            epoch_accuracy[1] += evals_test[0][0]
+            epoch_accuracy[2] += evals_test[0][0]
+            epoch_accuracy[3] += evals_test[1][0]
             num_tests += 1
 
     # Save the checkpoint
@@ -316,12 +321,16 @@ for epoch in range(start_epoch, opt.nepoch):
     if opt.tensorboard:
         epoch_loss[0] /= num_batch
         epoch_accuracy[0] /= num_batch
+        epoch_accuracy[1] /= num_batch
         epoch_loss[1] /= float(num_tests)
-        epoch_accuracy[1] /= float(num_tests)
+        epoch_accuracy[2] /= float(num_tests)
+        epoch_accuracy[3] /= float(num_tests)
         tensorboard_writer.add_scalar('Loss/train', epoch_loss[0], epoch)
         tensorboard_writer.add_scalar('Loss/test', epoch_loss[1], epoch)
         tensorboard_writer.add_scalar('Accuracy/train', epoch_accuracy[0], epoch)
-        tensorboard_writer.add_scalar('Accuracy/test', epoch_accuracy[1], epoch)
+        tensorboard_writer.add_scalar('Accuracy/test', epoch_accuracy[2], epoch)
+        tensorboard_writer.add_scalar('AccuracySymmetric/train', epoch_accuracy[1], epoch)
+        tensorboard_writer.add_scalar('AccuracySymmetric/test', epoch_accuracy[3], epoch)
         # tensorboard_writer.add_scalars('Loss', {'train': epoch_loss[0], 'test': epoch_loss[1]}, epoch)
         # tensorboard_writer.add_scalars('Accuracy', {'train': epoch_accuracy[0], 'test': epoch_accuracy[1]}, epoch)
         # for tag, value in regressor.named_parameters():
@@ -347,6 +356,9 @@ for i, data in tqdm(enumerate(testdataloader, 0)):
     points, target = points.cuda(), target.cuda()
     regressor = regressor.eval()
     pred = regressor(points)
+    if opt.yaxis_norm:
+        pred = normalize_direction(pred)
+        target = normalize_direction(target)
     targ_np = target.data.cpu().numpy()
     pred_np = pred.data.cpu().numpy()
     offset_np = offset.data.cpu().numpy().reshape((pred_np.shape[0], 3))

@@ -349,6 +349,16 @@ class HO3DDataset(data.Dataset):
             # point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
             # point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
             point_set, target = self.augment_data(point_set, target, self.disable_global_augmentation)
+            for i in range(point_set.shape[0]):
+                for j in range(point_set.shape[1]):
+                    if point_set[i][j] > 1.0:
+                        point_set[i][j] = 1.0
+                    if point_set[i][j] < -1.0:
+                        point_set[i][j] = -1.0
+
+        #if self.exclude_indices is not None:
+        #    for i in self.exclude_indices:
+        #        point_set = np.delete(point_set, i, 0)
 
         # Create tensors and return
         point_set = torch.from_numpy(point_set.astype(np.float32))

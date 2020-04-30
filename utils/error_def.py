@@ -138,10 +138,10 @@ def get_all_errors_batch(gt_poses, est_poses, pts, error_dict):
 
 
 def eval_grasps(error_dict, add_th=None, adds_th=None, tr_th=None):
-    add_eval = 0.
-    adds_eval = 0.
-    tr_eval = 0.
-    trxyz_eval = 0.
+    add_eval = (0., 0)
+    adds_eval = (0., 0)
+    tr_eval = (0., 0)
+    trxyz_eval = (0., 0)
 
     if add_th is not None and ADD_CODE in error_dict.keys():
         add_eval = eval_add_adds(error_dict[ADD_CODE], add_th)
