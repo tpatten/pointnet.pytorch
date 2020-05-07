@@ -44,14 +44,6 @@ https://docs.opencv.org/3.0-beta/modules/calib3d/doc/camera_calibration_and_3d_r
 https://docs.opencv.org/3.0-beta/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html#recoverpose
 https://stackoverflow.com/questions/33906111/how-do-i-estimate-positions-of-two-cameras-in-opencv
 
-Things to try:
-1) Start from pre-trained network (do not want to train from scratch)
-2) Reduce batch size (large batch size can reduce the generalization)
-3) Try less augmentation (augmentation can over regularise)
-4) Try drop outs (but be careful, it might cause it to underfit)
-6) Check the loss function
-8) Increase network size (more layers, more hidden units in fully connected layers)
-9) Try different hyperparameters
-10) Reduce regularisation by removing dropout, batch norm, etc (try to overfit first, then address overfitting)
 
-For weights, these histograms should have an approximately Gaussian (normal) distribution, after some time. For biases, these histograms will generally start at 0, and will usually end up being approximately Gaussian (One exception to this is for LSTM). Keep an eye out for parameters that are diverging to +/- infinity. Keep an eye out for biases that become very large. This can sometimes occur in the output layer for classification if the distribution of classes is very imbalanced.
+HAND TRACKING
+export LD_LIBRARY_PATH=/home/tpatten/Code/hand-tracking/lib:$LD_LIBRARY_PATH

@@ -252,7 +252,7 @@ if __name__ == '__main__':
         # seq = '0465'
         meta_filename = os.path.join(opt.dataset, 'train', subject, 'meta', seq + '.pkl')
         if opt.est:
-            hand_filename = os.path.join(opt.dataset, 'train', subject, 'hand', seq + '.pkl')
+            hand_filename = os.path.join(opt.dataset, 'train', subject, 'hand_tracker', seq + '.pkl')
         else:
             hand_filename = os.path.join(opt.dataset, 'train', subject, 'meta', seq + '.pkl')
         if os.path.exists(hand_filename):
