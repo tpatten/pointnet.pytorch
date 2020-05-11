@@ -163,7 +163,6 @@ if opt.yaxis_norm:
     output_dir += '_yAxisNorm'
 if not opt.joint_set == JointSet.FULL:
     output_dir = output_dir + '_jointSet' + str(opt.joint_set)
-output_dir += '_att2'
 print('Output directory\n{}'.format(output_dir))
 
 if opt.save_model:

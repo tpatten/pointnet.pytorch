@@ -785,7 +785,7 @@ class PointNetRegressionFlat(nn.Module):
         self.bn2 = nn.BatchNorm1d(256)
 
     def forward(self, x):
-        x = F.relu(self.bnf1(self.conv1(x.view(-1, 63))))
+        x = F.relu(self.bnf1(self.conv1(x.view(-1, 63, 1))))
         x = F.relu(self.bnf2(self.conv2(x)))
         x = self.bnf3(self.conv3(x))
         if self.avg_pool:
