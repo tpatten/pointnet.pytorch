@@ -33,6 +33,7 @@ class Archs(IntEnum):
     PN_Flat = 14
     PN_NoPool = 15
     PN_NoPoolSmall = 16
+    PN_Flat5Layer = 17
 
 
 class STN3d(nn.Module):
@@ -870,6 +871,53 @@ class PointNetRegressionNoPoolSmall(nn.Module):
         x = F.relu(self.bnf2(self.conv2(x)))
         x = self.bnf3(self.conv3(x))
         x = x.view(-1, 128 * num_points)
+
+        x = F.relu(self.bn1(self.fc1(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn2(self.dropout(self.fc2(x))))
+        else:
+            x = F.relu(self.bn2(self.fc2(x)))
+        x = self.fc3(x)
+        return x
+
+
+# PN_Flat5Layer = 17
+class PointNetRegressionFlat5Layer(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionFlat5Layer, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(63, 64, 1)
+        self.conv2 = torch.nn.Conv1d(64, 64, 1)
+        self.conv3 = torch.nn.Conv1d(64, 64, 1)
+        self.conv4 = torch.nn.Conv1d(64, 128, 1)
+        self.conv5 = torch.nn.Conv1d(128, 1024, 1)
+        self.bnf1 = nn.BatchNorm1d(64)
+        self.bnf2 = nn.BatchNorm1d(64)
+        self.bnf3 = nn.BatchNorm1d(64)
+        self.bnf4 = nn.BatchNorm1d(128)
+        self.bnf5 = nn.BatchNorm1d(1024)
+
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+
+    def forward(self, x):
+        x = F.relu(self.bnf1(self.conv1(x.view(-1, 63, 1))))
+        x = F.relu(self.bnf2(self.conv2(x)))
+        x = F.relu(self.bnf3(self.conv3(x)))
+        x = F.relu(self.bnf4(self.conv4(x)))
+        x = self.bnf5(self.conv5(x))
+        if self.avg_pool:
+            x = torch.mean(x, 2, keepdim=True)
+        else:
+            x = torch.max(x, 2, keepdim=True)[0]
+        x = x.view(-1, 1024)
 
         x = F.relu(self.bn1(self.fc1(x)))
         if self.dropout_p > 0.0:
