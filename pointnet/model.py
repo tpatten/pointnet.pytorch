@@ -32,6 +32,7 @@ class Archs(IntEnum):
     PN_Half_LReLu = 13
     PN_Flat = 14
     PN_NoPool = 15
+    PN_NoPoolSmall = 16
 
 
 class STN3d(nn.Module):
@@ -831,6 +832,44 @@ class PointNetRegressionNoPool(nn.Module):
         x = F.relu(self.bnf2(self.conv2(x)))
         x = self.bnf3(self.conv3(x))
         x = x.view(-1, 1024 * num_points)
+
+        x = F.relu(self.bn1(self.fc1(x)))
+        if self.dropout_p > 0.0:
+            x = F.relu(self.bn2(self.dropout(self.fc2(x))))
+        else:
+            x = F.relu(self.bn2(self.fc2(x)))
+        x = self.fc3(x)
+        return x
+
+
+# PN_NoPoolSmall = 16
+class PointNetRegressionNoPoolSmall(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionNoPoolSmall, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(3, 64, 1)
+        self.conv2 = torch.nn.Conv1d(64, 128, 1)
+        self.conv3 = torch.nn.Conv1d(128, 128, 1)
+        self.bnf1 = nn.BatchNorm1d(64)
+        self.bnf2 = nn.BatchNorm1d(128)
+        self.bnf3 = nn.BatchNorm1d(128)
+
+        self.fc1 = nn.Linear(2688, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, k_out)
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+
+    def forward(self, x):
+        num_points = x.size()[2]
+        x = F.relu(self.bnf1(self.conv1(x)))
+        x = F.relu(self.bnf2(self.conv2(x)))
+        x = self.bnf3(self.conv3(x))
+        x = x.view(-1, 128 * num_points)
 
         x = F.relu(self.bn1(self.fc1(x)))
         if self.dropout_p > 0.0:

@@ -231,6 +231,8 @@ if __name__ == '__main__':
         regressor = PointNetRegressionFlat(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
     elif opt.arch == Archs.PN_NoPool:
         regressor = PointNetRegressionNoPool(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_NoPoolSmall:
+        regressor = PointNetRegressionNoPoolSmall(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
     else:
         print('Unknown architecture specified')
         sys.exit(0)

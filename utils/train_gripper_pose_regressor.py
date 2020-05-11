@@ -79,7 +79,7 @@ opt = parser.parse_args()
 opt.k_out = 9
 opt.lc_weights = [1./3., 1./3., 1./3.]
 opt.loss_reduction = 'mean'  # 'mean' or 'sum'
-opt.save_model = False
+opt.save_model = True
 print(opt)
 
 blue = lambda x: '\033[94m' + x + '\033[0m'
@@ -202,6 +202,8 @@ elif opt.arch == Archs.PN_Flat:
     regressor = PointNetRegressionFlat(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
 elif opt.arch == Archs.PN_NoPool:
     regressor = PointNetRegressionNoPool(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+elif opt.arch == Archs.PN_NoPoolSmall:
+    regressor = PointNetRegressionNoPoolSmall(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
 else:
     print('Unknown architecture specified')
     sys.exit(0)
