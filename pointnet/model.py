@@ -8,6 +8,7 @@ import numpy as np
 import torch.nn.functional as F
 import utils.error_def as error_def
 from enum import IntEnum
+import copy
 
 
 MSE_LOSS_CODE = 'MSE'
@@ -34,6 +35,97 @@ class Archs(IntEnum):
     PN_NoPool = 15
     PN_NoPoolSmall = 16
     PN_Flat5Layer = 17
+
+
+def parse_model_filename(filename):
+    # Output is a dictionary
+    f_args = {}
+    sub_str = copy.deepcopy(filename)
+    # Subset is the first
+    idx = sub_str.find('_')
+    f_args['data_subset'] = sub_str[0:idx]
+    # Batch is the second
+    idx = sub_str.find('batch')
+    idx2 = sub_str.find('_', idx)
+    f_args['batch_size'] = int(sub_str[idx + 5:idx2])
+    # Epoch is the third
+    idx = sub_str.find('nEpoch')
+    idx2 = sub_str.find('_', idx)
+    f_args['nEpoch'] = int(sub_str[idx + 6: idx2])
+
+    # Get either modelLoss of regLoss
+    idx = sub_str.find('regLoss')
+    if idx != -1:
+        f_args['model_loss'] = False
+    else:
+        f_args['model_loss'] = True
+
+    # Check if dropout
+    f_args['dropout_p'] = 0.0
+    idx = sub_str.find('dropout')
+    if idx != -1:
+        idx2 = sub_str.find('_', idx)
+        dropout_p = sub_str[idx + 7:idx2]
+        dropout_p = dropout_p.replace('-', '.')
+        f_args['dropout_p'] = float(dropout_p)
+
+    # Check if augmentation
+    f_args['data_augmentation'] = False
+    idx = sub_str.find('augmentation')
+    if idx != -1:
+        f_args['data_augmentation'] = True
+
+    # Check if split loss
+    f_args['splitloss'] = False
+    idx = sub_str.find('splitLoss')
+    if idx != -1:
+        f_args['splitloss'] = True
+
+    # Check if symmetry
+    f_args['closing_symmetry'] = False
+    idx = sub_str.find('symmetry')
+    if idx != -1:
+        f_args['closing_symmetry'] = True
+
+    # Check if flip closing angle
+    f_args['randomly_flip_closing_angle'] = False
+    idx = sub_str.find('rFlipClAng')
+    if idx != -1:
+        f_args['randomly_flip_closing_angle'] = True
+
+    # Check if wrist centered
+    f_args['center_to_wrist_joint'] = False
+    idx = sub_str.find('wristCentered')
+    if idx != -1:
+        f_args['center_to_wrist_joint'] = True
+
+    # Check if average pool is selected
+    f_args['average_pool'] = False
+    idx = sub_str.find('avgPool')
+    if idx != -1:
+        f_args['average_pool'] = True
+
+    # Get the architecture type
+    f_args['arch'] = Archs.PN
+    idx = sub_str.find('arch')
+    if idx != -1:
+        idx2 = sub_str.find('_', idx)
+        f_args['arch'] = int(sub_str[idx + 4: idx2])
+
+    # Check if y axis is normalized
+    f_args['yaxis_norm'] = False
+    idx = sub_str.find('yAxisNorm')
+    if idx != -1:
+        f_args['yaxis_norm'] = True
+
+    # Get the joint set
+    f_args['joint_set'] = 1
+    idx = sub_str.find('jointSet')
+    if idx != -1:
+        idx2 = sub_str.find('_', idx)
+        f_args['joint_set'] = int(sub_str[idx + 8: idx2])
+
+    return f_args
 
 
 class STN3d(nn.Module):

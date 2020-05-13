@@ -1,11 +1,12 @@
 from __future__ import print_function
 import argparse
 import os
+import sys
 import random
 import torch.optim as optim
 import torch.utils.data
-from pointnet.dataset import HO3DDataset
-from pointnet.model import PointNetRegression
+from pointnet.dataset import HO3DDataset, JointSet
+from pointnet.model import *
 import torch.nn.functional as F
 import numpy as np
 import open3d as o3d
@@ -26,6 +27,9 @@ all_indices = [wrist_indices, thumb_indices, index_indices, middle_indices, ring
 finger_colors = [[0.0, 0.0, 0.0], [1.0, 0.0, 1.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0], [1.0, 0.0, 0.0]]
 finger_colors_box = [[0.2, 0.2, 0.2], [0.8, 0.2, 0.8], [0.2, 0.2, 0.8], [0.2, 0.8, 0.2], [0.8, 0.8, 0.2], [0.8, 0.2, 0.2]]
 joint_sizes = [0.008, 0.006, 0.004, 0.004]
+PASSGREEN = lambda x: '\033[92m' + x + '\033[0m'
+FAILRED = lambda x: '\033[91m' + x + '\033[0m'
+DIAMETER = 0.232280153674483
 
 
 def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, verbose=False):
@@ -109,7 +113,6 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
     # Load the gripper cloud
     gripper_pcd = o3d.geometry.PointCloud()
     gripper_pcd.points = o3d.utility.Vector3dVector(np.loadtxt('hand_open_symmetric.xyz'))
-    # gripper_pcd = o3d.io.read_point_cloud('hand_open_symmetric.ply')
     gripper_pcd_gt = copy.deepcopy(gripper_pcd)
     gripper_pcd_predicted = copy.deepcopy(gripper_pcd)
 
@@ -121,25 +124,13 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
     gripper_pcd_gt.points = o3d.utility.Vector3dVector(pts)
 
     # Transform with the prediction
-    gripper_trans_scaled = copy.deepcopy(pred_np[0:3])
-    gripper_trans_scaled *= dist
-    gripper_trans_scaled += offset.flatten()
-    z_axis = copy.deepcopy(pred_np[3:6])
-    z_axis /= np.linalg.norm(z_axis)
-    y_axis = copy.deepcopy(pred_np[6:9])
-    y_axis /= np.linalg.norm(y_axis)
-    x_axis = np.cross(y_axis, z_axis)
-    rot = np.eye(3)
-    rot[:, 0] = x_axis
-    rot[:, 1] = y_axis
-    rot[:, 2] = z_axis
+    predicted_gripper_transform = error_def.to_transform(pred_np, offset, dist)
+    gripper_trans_scaled = copy.deepcopy(predicted_gripper_transform[0:3, 3])
+    rot = copy.deepcopy(predicted_gripper_transform[0:3, 0:3])
     pts = np.asarray(gripper_pcd.points)
     pts = np.matmul(pts, np.linalg.inv(rot))
     pts += gripper_trans_scaled
     gripper_pcd_predicted.points = o3d.utility.Vector3dVector(pts)
-    predicted_gripper_transform = np.eye(4)
-    predicted_gripper_transform[:3, :3] = rot
-    predicted_gripper_transform[:3, 3] = gripper_trans_scaled
 
     if verbose:
         print('GROUND TRUTH')
@@ -157,14 +148,23 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
         print('Rotation\n{}\n{}\n{}'.format(np.degrees(euler_prediction[0]), np.degrees(euler_prediction[1]),
                                             np.degrees(euler_prediction[2])))
 
-        print('ERROR')
-        print('ADD {}'.format(error_def.add_error(gripper_transform, predicted_gripper_transform,
-                                                  np.asarray(gripper_pcd.points))))
-        print('ADD Symmetric {}'.format(error_def.add_symmetric_error(gripper_transform, predicted_gripper_transform,
-                                                                      np.asarray(gripper_pcd.points))))
-        print('Translation {}'.format(error_def.translation_error(gripper_transform, predicted_gripper_transform)))
-        print('Rotation {}'.format(np.degrees(error_def.rotation_error(gripper_transform,
-                                                                       predicted_gripper_transform)[0])))
+    print('ERROR')
+    print('ADD {}'.format(error_def.add_error(gripper_transform, predicted_gripper_transform,
+                                              np.asarray(gripper_pcd.points))))
+    adds_error = error_def.add_symmetric_error(gripper_transform, predicted_gripper_transform,
+                                               np.asarray(gripper_pcd.points))
+    print('ADD Symmetric {}'.format(adds_error))
+    print('Translation {}'.format(error_def.translation_error(gripper_transform, predicted_gripper_transform)))
+    print('Rotation {}'.format(np.degrees(error_def.rotation_error(gripper_transform,
+                                                                   predicted_gripper_transform)[0])))
+    if adds_error < 0.1 * DIAMETER:
+        print('10%%: %s' % (PASSGREEN('PASS')))
+    else:
+        print('10%%: %s' % (FAILRED('FAIL')))
+    if adds_error < 0.2 * DIAMETER:
+        print('20%%: %s' % (PASSGREEN('PASS')))
+    else:
+        print('20%%: %s' % (FAILRED('FAIL')))
 
     # Visualize
     vis = o3d.visualization.Visualizer()
@@ -225,7 +225,16 @@ if __name__ == '__main__':
 
     opt = parser.parse_args()
     opt.models_path = '/home/tpatten/v4rtemp/datasets/HandTracking/HO3D_v2/models'
-    opt.verbose = True
+    opt.verbose = False
+    print(opt)
+
+    f_args = parse_model_filename(os.path.basename(opt.model))
+    opt.k_out = 9
+    opt.data_subset = f_args['data_subset']
+    opt.dropout_p = f_args['dropout_p']
+    opt.average_pool = f_args['average_pool']
+    opt.arch = f_args['arch']
+    opt.joint_set = f_args['joint_set']
     print(opt)
 
     opt.manualSeed = random.randint(1, 10000)  # fix seed
@@ -234,13 +243,55 @@ if __name__ == '__main__':
     torch.manual_seed(opt.manualSeed)
 
     # Set up the model
-    regressor = PointNetRegression(k_out=9)
+    regressor = None
+    if opt.arch == Archs.PN:
+        regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Sym:
+        regressor = PointNetRegressionSym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_FC4:
+        regressor = PointNetRegressionFC4(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_FC4_Sym:
+        regressor = PointNetRegressionFC4Sym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_FC45:
+        regressor = PointNetRegressionFC45(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_FC45_Sym:
+        regressor = PointNetRegressionFC45Sym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Small_3L:
+        regressor = PointNetRegressionSmall3Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Small_4L:
+        regressor = PointNetRegressionSmall4Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Half:
+        regressor = PointNetRegressionHalf(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Half_FC4:
+        regressor = PointNetRegressionHalfFC4(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_FC4_256:
+        regressor = PointNetRegressionFC4_256(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_LReLu:
+        regressor = PointNetRegressionLeakyReLu(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Half_LReLu:
+        regressor = PointNetRegressionHalfLeakyReLu(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Flat:
+        regressor = PointNetRegressionFlat(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_NoPool:
+        regressor = PointNetRegressionNoPool(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_NoPoolSmall:
+        regressor = PointNetRegressionNoPoolSmall(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif opt.arch == Archs.PN_Flat5Layer:
+        regressor = PointNetRegressionFlat5Layer(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    else:
+        print('Unknown architecture specified')
+        sys.exit(0)
+
     regressor.load_state_dict(torch.load(opt.model))
     regressor.cuda()
     regressor = regressor.eval()
 
     # Get the files
-    splitfile = os.path.join(opt.dataset, 'grasp_test.txt')
+    subset_name = opt.data_subset
+    if subset_name[0] == 'X':
+        subset_name = subset_name[1:]
+    # splitfile = os.path.join(opt.dataset, 'grasp_test.txt')
+    splitfile = os.path.join(opt.dataset, 'splits_new', subset_name + '_grasp_test.txt')
     f = open(splitfile, "r")
     filelist = [line[:-1] for line in f]
     f.close()
@@ -248,8 +299,6 @@ if __name__ == '__main__':
     # For each file
     for file in filelist:
         subject, seq = file.split('/')
-        # subject = 'ABF10'
-        # seq = '0465'
         meta_filename = os.path.join(opt.dataset, 'train', subject, 'meta', seq + '.pkl')
         if opt.est:
             hand_filename = os.path.join(opt.dataset, 'train', subject, 'hand_tracker', seq + '.pkl')
@@ -257,10 +306,9 @@ if __name__ == '__main__':
             hand_filename = os.path.join(opt.dataset, 'train', subject, 'meta', seq + '.pkl')
         if os.path.exists(hand_filename):
             grasp_pose_filename = os.path.join(opt.dataset, 'train', subject, 'meta', 'grasp_bl_' + seq + '.pkl')
-            print('\n --- Processing file {} ---'.format(meta_filename))
+            print('\n--- Processing file {} ---'.format(meta_filename))
             # Visualize
             visualize(meta_filename, hand_filename, grasp_pose_filename, opt.models_path, opt.verbose)
-            print('\n')
             # sys.exit(0)
         else:
             print('No hand estimate for {}'.format(hand_filename))
