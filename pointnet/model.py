@@ -128,6 +128,55 @@ def parse_model_filename(filename):
     return f_args
 
 
+def load_regression_model(arch, k_out, dropout_p, average_pool, model=''):
+    # Set up the model
+    regressor = None
+    if arch == Archs.PN:
+        regressor = PointNetRegression(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_Sym:
+        regressor = PointNetRegressionSym(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_FC4:
+        regressor = PointNetRegressionFC4(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_FC4_Sym:
+        regressor = PointNetRegressionFC4Sym(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_FC45:
+        regressor = PointNetRegressionFC45(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_FC45_Sym:
+        regressor = PointNetRegressionFC45Sym(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_Small_3L:
+        regressor = PointNetRegressionSmall3Layers(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_Small_4L:
+        regressor = PointNetRegressionSmall4Layers(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_Half:
+        regressor = PointNetRegressionHalf(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_Half_FC4:
+        regressor = PointNetRegressionHalfFC4(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_FC4_256:
+        regressor = PointNetRegressionFC4_256(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_LReLu:
+        regressor = PointNetRegressionLeakyReLu(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_Half_LReLu:
+        regressor = PointNetRegressionHalfLeakyReLu(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_Flat:
+        regressor = PointNetRegressionFlat(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_NoPool:
+        regressor = PointNetRegressionNoPool(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_NoPoolSmall:
+        regressor = PointNetRegressionNoPoolSmall(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif arch == Archs.PN_Flat5Layer:
+        regressor = PointNetRegressionFlat5Layer(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    else:
+        print('Unknown architecture specified')
+        return None
+
+    if model != '':
+        regressor.load_state_dict(torch.load(model))
+
+    regressor.cuda()
+
+    return regressor
+
+
 class STN3d(nn.Module):
     def __init__(self):
         super(STN3d, self).__init__()

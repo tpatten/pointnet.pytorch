@@ -32,6 +32,20 @@ FAILRED = lambda x: '\033[91m' + x + '\033[0m'
 DIAMETER = 0.232280153674483
 
 
+def load_files(dataset_path, data_subset):
+    # Get the files
+    subset_name = data_subset
+    if subset_name[0] == 'X':
+        subset_name = subset_name[1:]
+    # splitfile = os.path.join(opt.dataset, 'grasp_test.txt')
+    filename = os.path.join(dataset_path, 'splits_new', subset_name + '_grasp_test.txt')
+    f = open(filename, "r")
+    files = [line[:-1] for line in f]
+    f.close()
+
+    return files
+
+
 def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, verbose=False):
     # Load the points
     with open(hand_filename, 'rb') as f:
@@ -287,14 +301,7 @@ if __name__ == '__main__':
     regressor = regressor.eval()
 
     # Get the files
-    subset_name = opt.data_subset
-    if subset_name[0] == 'X':
-        subset_name = subset_name[1:]
-    # splitfile = os.path.join(opt.dataset, 'grasp_test.txt')
-    splitfile = os.path.join(opt.dataset, 'splits_new', subset_name + '_grasp_test.txt')
-    f = open(splitfile, "r")
-    filelist = [line[:-1] for line in f]
-    f.close()
+    filelist = load_files(opt.dataset, opt.data_subset)
 
     # For each file
     for file in filelist:
@@ -306,7 +313,7 @@ if __name__ == '__main__':
             hand_filename = os.path.join(opt.dataset, 'train', subject, 'meta', seq + '.pkl')
         if os.path.exists(hand_filename):
             grasp_pose_filename = os.path.join(opt.dataset, 'train', subject, 'meta', 'grasp_bl_' + seq + '.pkl')
-            print('\n--- Processing file {} ---'.format(meta_filename))
+            print('\n--- Processing file {} ---'.format(hand_filename))
             # Visualize
             visualize(meta_filename, hand_filename, grasp_pose_filename, opt.models_path, opt.verbose)
             # sys.exit(0)
