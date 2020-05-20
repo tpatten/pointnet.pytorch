@@ -188,11 +188,30 @@ def eval_translation_rotation(t_errors, r_errors, r_x_errors, r_y_errors, r_z_er
 
     if len(r_x_errors) > 0 and len(r_y_errors) > 0 and len(r_z_errors) > 0:
         num_correct = 0
+        xx = []
+        yy = []
+        zz = []
         for i in range(len(t_errors)):
+            # y should be symmetric
+            xx.append(np.degrees(r_x_errors[i]))
+            yy.append(np.degrees(r_y_errors[i]))
+            zz.append(np.degrees(r_z_errors[i]))
+            #print(r_x_errors[i], r_y_errors[i], r_z_errors[i])
             if t_errors[i] <= t_threshold and r_x_errors[i] <= r_threshold and r_y_errors[i] <= r_threshold and \
                     r_z_errors[i] <= r_threshold:
                 num_correct += 1
         trxyz_eval = float(num_correct) / float(len(t_errors)), num_correct
+
+        if t_threshold == 0:
+            xx = np.asarray(xx)
+            print('x min {}  x max {}  x avg {}'.format(np.min(xx.flatten()), np.max(xx.flatten()),
+                                                        np.mean(xx.flatten())))
+            yy = np.asarray(yy)
+            print('y min {}  y max {}  y avg {}'.format(np.min(yy.flatten()), np.max(yy.flatten()),
+                                                        np.mean(yy.flatten())))
+            zz = np.asarray(zz)
+            print('z min {}  z max {}  z avg {}'.format(np.min(zz.flatten()), np.max(zz.flatten()),
+                                                        np.mean(zz.flatten())))
     else:
         trxyz_eval = 0., 0
 

@@ -1,5 +1,6 @@
 python3 -m pip install [something]
 python3 -m pip install scikit-image
+python3 -m pip install opencv-contrib-python==3.4.2.16
 
 Mount server
 sudo mount -t cifs //v4r-nas.acin.tuwien.ac.at/v4rtemp v4rtemp -o username=tpa

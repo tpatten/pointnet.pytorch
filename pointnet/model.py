@@ -931,10 +931,6 @@ class PointNetRegressionFlat(nn.Module):
         x = F.relu(self.bnf1(self.conv1(x.view(-1, 63, 1))))
         x = F.relu(self.bnf2(self.conv2(x)))
         x = self.bnf3(self.conv3(x))
-        if self.avg_pool:
-            x = torch.mean(x, 2, keepdim=True)
-        else:
-            x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, 1024)
 
         x = F.relu(self.bn1(self.fc1(x)))
@@ -1054,10 +1050,6 @@ class PointNetRegressionFlat5Layer(nn.Module):
         x = F.relu(self.bnf3(self.conv3(x)))
         x = F.relu(self.bnf4(self.conv4(x)))
         x = self.bnf5(self.conv5(x))
-        if self.avg_pool:
-            x = torch.mean(x, 2, keepdim=True)
-        else:
-            x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, 1024)
 
         x = F.relu(self.bn1(self.fc1(x)))
