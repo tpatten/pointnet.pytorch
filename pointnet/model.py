@@ -1111,12 +1111,7 @@ class PointNetRegressionFlatSplit(nn.Module):
             x2 = F.relu(self.bn22(self.fc22(x2)))
         x2 = self.fc23(x2)
 
-        print(x1.size())
-        print(x2.size())
-
-        x = torch.cat((x1, x2), dim=2)
-
-
+        x = torch.cat((x1, x2), dim=1)
         return x
 
 
