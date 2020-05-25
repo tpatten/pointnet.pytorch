@@ -54,13 +54,13 @@ def translation_error(gt_pose, est_pose):
 
 def rotation_error(gt_pose, est_pose):
     est_pose_new = copy.deepcopy(est_pose)
-    rot_diff = np.abs(np.degrees(
-        np.array(tf3d.euler.mat2euler(np.matmul(np.linalg.inv(gt_pose[:3, :3]), est_pose_new[:3, :3]), 'szyx'))))
-    if rot_diff[0] > 90:
+    rot_diff = np.degrees(
+        np.array(tf3d.euler.mat2euler(np.matmul(np.linalg.inv(gt_pose[:3, :3]), est_pose_new[:3, :3]), 'szyx')))
+    if np.abs(rot_diff[0]) > 90:
         est_pose_new[:3, 0] *= -1
         est_pose_new[:3, 1] *= -1
-        rot_diff = np.abs(
-            np.array(tf3d.euler.mat2euler(np.matmul(np.linalg.inv(gt_pose[:3, :3]), est_pose_new[:3, :3]), 'szyx')))
+        rot_diff = np.array(
+            tf3d.euler.mat2euler(np.matmul(np.linalg.inv(gt_pose[:3, :3]), est_pose_new[:3, :3]), 'szyx'))
     else:
         rot_diff = np.radians(rot_diff)
 
@@ -196,22 +196,10 @@ def eval_translation_rotation(t_errors, r_errors, r_x_errors, r_y_errors, r_z_er
             xx.append(np.degrees(r_x_errors[i]))
             yy.append(np.degrees(r_y_errors[i]))
             zz.append(np.degrees(r_z_errors[i]))
-            #print(r_x_errors[i], r_y_errors[i], r_z_errors[i])
             if t_errors[i] <= t_threshold and r_x_errors[i] <= r_threshold and r_y_errors[i] <= r_threshold and \
                     r_z_errors[i] <= r_threshold:
                 num_correct += 1
         trxyz_eval = float(num_correct) / float(len(t_errors)), num_correct
-
-        if t_threshold == 0:
-            xx = np.asarray(xx)
-            print('x min {}  x max {}  x avg {}'.format(np.min(xx.flatten()), np.max(xx.flatten()),
-                                                        np.mean(xx.flatten())))
-            yy = np.asarray(yy)
-            print('y min {}  y max {}  y avg {}'.format(np.min(yy.flatten()), np.max(yy.flatten()),
-                                                        np.mean(yy.flatten())))
-            zz = np.asarray(zz)
-            print('z min {}  z max {}  z avg {}'.format(np.min(zz.flatten()), np.max(zz.flatten()),
-                                                        np.mean(zz.flatten())))
     else:
         trxyz_eval = 0., 0
 

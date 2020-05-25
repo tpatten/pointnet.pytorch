@@ -166,10 +166,12 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
     adds_error = error_def.add_symmetric_error(gripper_transform, predicted_gripper_transform,
                                                np.asarray(gripper_pcd.points))
     print('ADD Symmetric {:.4f}'.format(adds_error))
-    print('Translation {:.4f}'.format(error_def.translation_error(gripper_transform, predicted_gripper_transform)*100))
-    rot_error = np.degrees(error_def.rotation_error(gripper_transform, predicted_gripper_transform))
-    print('Rotation {:.2f}'.format(rot_error[0]))
-    print('Rx {:.2f} Ry {:.2f} Rz {:.2f}'.format(rot_error[1], rot_error[2], rot_error[3]))
+    t_error = error_def.translation_error(gripper_transform, predicted_gripper_transform) * 100
+    print('Translation {:.4f} cm'.format(t_error))
+    r_error = np.degrees(error_def.rotation_error(gripper_transform, predicted_gripper_transform))
+    print('Rotation {:.2f} deg'.format(r_error[0]))
+    print('Rx {:.2f} Ry {:.2f} Rz {:.2f}'.format(r_error[1], r_error[2], r_error[3]))
+
     if adds_error < 0.1 * DIAMETER:
         print('10%%: %s' % (PASSGREEN('PASS')))
     else:
@@ -178,6 +180,15 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
         print('20%%: %s' % (PASSGREEN('PASS')))
     else:
         print('20%%: %s' % (FAILRED('FAIL')))
+
+    if t_error < 5.0 and np.abs(r_error[0]) < 5.0 and np.abs(r_error[1]) < 5.0 and np.abs(r_error[2]) < 5.0:
+        print('5cm/5deg: %s' % (PASSGREEN('PASS')))
+    else:
+        print('5cm/5deg: %s' % (FAILRED('FAIL')))
+    if t_error < 5.0 and np.abs(r_error[0]) < 15.0 and np.abs(r_error[1]) < 15.0 and np.abs(r_error[2]) < 15.0:
+        print('5cm/15deg: %s' % (PASSGREEN('PASS')))
+    else:
+        print('5cm/15deg: %s' % (FAILRED('FAIL')))
 
     # Visualize
     vis = o3d.visualization.Visualizer()
@@ -280,6 +291,6 @@ if __name__ == '__main__':
             print('\n--- Processing file {} ---'.format(hand_filename))
             # Visualize
             visualize(meta_filename, hand_filename, grasp_pose_filename, opt.models_path, opt.verbose)
-            sys.exit(0)
+            # sys.exit(0)
         else:
             print('No hand estimate for {}'.format(hand_filename))
