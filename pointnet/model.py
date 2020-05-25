@@ -35,6 +35,7 @@ class Archs(IntEnum):
     PN_NoPool = 15
     PN_NoPoolSmall = 16
     PN_Flat5Layer = 17
+    PN_Flat_Split = 18
 
 
 def parse_model_filename(filename):
@@ -165,14 +166,14 @@ def load_regression_model(arch, k_out, dropout_p, average_pool, model=''):
         regressor = PointNetRegressionNoPoolSmall(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
     elif arch == Archs.PN_Flat5Layer:
         regressor = PointNetRegressionFlat5Layer(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
+    elif opt.arch == Archs.PN_Flat_Split:
+        regressor = PointNetRegressionFlatSplit(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
     else:
         print('Unknown architecture specified')
         return None
 
     if model != '':
         regressor.load_state_dict(torch.load(model))
-
-    regressor.cuda()
 
     return regressor
 
@@ -1058,6 +1059,64 @@ class PointNetRegressionFlat5Layer(nn.Module):
         else:
             x = F.relu(self.bn2(self.fc2(x)))
         x = self.fc3(x)
+        return x
+
+
+# PN_Flat_Split = 18
+class PointNetRegressionFlatSplit(nn.Module):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+        super(PointNetRegressionFlatSplit, self).__init__()
+        self.dropout_p = dropout_p
+        self.avg_pool = avg_pool
+
+        self.conv1 = torch.nn.Conv1d(63, 64, 1)
+        self.conv2 = torch.nn.Conv1d(64, 128, 1)
+        self.conv3 = torch.nn.Conv1d(128, 1024, 1)
+        self.bnf1 = nn.BatchNorm1d(64)
+        self.bnf2 = nn.BatchNorm1d(128)
+        self.bnf3 = nn.BatchNorm1d(1024)
+
+        self.fc11 = nn.Linear(1024, 512)
+        self.fc12 = nn.Linear(512, 256)
+        self.fc13 = nn.Linear(256, 3)
+        self.bn11 = nn.BatchNorm1d(512)
+        self.bn12 = nn.BatchNorm1d(256)
+
+        self.fc21 = nn.Linear(1024, 512)
+        self.fc22 = nn.Linear(512, 256)
+        self.fc23 = nn.Linear(256, 6)
+        self.bn21 = nn.BatchNorm1d(512)
+        self.bn22 = nn.BatchNorm1d(256)
+
+        if self.dropout_p > 0.0:
+            self.dropout = nn.Dropout(p=self.dropout_p)
+
+    def forward(self, x):
+        x = F.relu(self.bnf1(self.conv1(x.view(-1, 63, 1))))
+        x = F.relu(self.bnf2(self.conv2(x)))
+        x = self.bnf3(self.conv3(x))
+        x = x.view(-1, 1024)
+
+        x1 = F.relu(self.bn11(self.fc11(x)))
+        if self.dropout_p > 0.0:
+            x1 = F.relu(self.bn12(self.dropout(self.fc12(x1))))
+        else:
+            x1 = F.relu(self.bn12(self.fc12(x1)))
+        x1 = self.fc13(x1)
+
+        x2 = F.relu(self.bn12(self.fc12(x)))
+        if self.dropout_p > 0.0:
+            x2 = F.relu(self.bn22(self.dropout(self.fc22(x2))))
+        else:
+            x2 = F.relu(self.bn22(self.fc22(x2)))
+        x2 = self.fc13(x2)
+
+        print(x1.size())
+        print(x2.size())
+
+        x = torch.cat((x1, x2), dim=2)
+
+
         return x
 
 

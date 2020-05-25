@@ -109,46 +109,11 @@ if __name__ == '__main__':
             batch_size=opt.batch_size,
             shuffle=True)
 
-    regressor = None
-    if opt.arch == Archs.PN:
-        regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Sym:
-        regressor = PointNetRegressionSym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_FC4:
-        regressor = PointNetRegressionFC4(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_FC4_Sym:
-        regressor = PointNetRegressionFC4Sym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_FC45:
-        regressor = PointNetRegressionFC45(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_FC45_Sym:
-        regressor = PointNetRegressionFC45Sym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Small_3L:
-        regressor = PointNetRegressionSmall3Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Small_4L:
-        regressor = PointNetRegressionSmall4Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Half:
-        regressor = PointNetRegressionHalf(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Half_FC4:
-        regressor = PointNetRegressionHalfFC4(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_FC4_256:
-        regressor = PointNetRegressionFC4_256(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_LReLu:
-        regressor = PointNetRegressionLeakyReLu(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Half_LReLu:
-        regressor = PointNetRegressionHalfLeakyReLu(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Flat:
-        regressor = PointNetRegressionFlat(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_NoPool:
-        regressor = PointNetRegressionNoPool(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_NoPoolSmall:
-        regressor = PointNetRegressionNoPoolSmall(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Flat5Layer:
-        regressor = PointNetRegressionFlat5Layer(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    else:
+    regressor = load_regression_model(opt.arch, opt.k_out, opt.dropout_p, opt.average_pool)
+    if regressor is None:
         print('Unknown architecture specified')
         sys.exit(0)
 
-    regressor.load_state_dict(torch.load(opt.model))
     regressor.cuda()
     regressor = regressor.eval()
 
