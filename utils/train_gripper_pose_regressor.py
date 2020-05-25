@@ -79,7 +79,7 @@ opt = parser.parse_args()
 opt.k_out = 9
 opt.lc_weights = [1./3., 1./3., 1./3.]
 opt.loss_reduction = 'mean'  # 'mean' or 'sum'
-opt.save_model = False
+opt.save_model = True
 print(opt)
 
 blue = lambda x: '\033[94m' + x + '\033[0m'

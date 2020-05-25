@@ -166,8 +166,8 @@ def load_regression_model(arch, k_out, dropout_p, average_pool, model=''):
         regressor = PointNetRegressionNoPoolSmall(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
     elif arch == Archs.PN_Flat5Layer:
         regressor = PointNetRegressionFlat5Layer(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
-    elif opt.arch == Archs.PN_Flat_Split:
-        regressor = PointNetRegressionFlatSplit(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
+    elif arch == Archs.PN_Flat_Split:
+        regressor = PointNetRegressionFlatSplit(k_out=k_out, dropout_p=dropout_p, avg_pool=average_pool)
     else:
         print('Unknown architecture specified')
         return None
@@ -1104,12 +1104,12 @@ class PointNetRegressionFlatSplit(nn.Module):
             x1 = F.relu(self.bn12(self.fc12(x1)))
         x1 = self.fc13(x1)
 
-        x2 = F.relu(self.bn12(self.fc12(x)))
+        x2 = F.relu(self.bn21(self.fc21(x)))
         if self.dropout_p > 0.0:
             x2 = F.relu(self.bn22(self.dropout(self.fc22(x2))))
         else:
             x2 = F.relu(self.bn22(self.fc22(x2)))
-        x2 = self.fc13(x2)
+        x2 = self.fc23(x2)
 
         print(x1.size())
         print(x2.size())
