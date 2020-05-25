@@ -109,7 +109,7 @@ if __name__ == '__main__':
             batch_size=opt.batch_size,
             shuffle=True)
 
-    regressor = load_regression_model(opt.arch, opt.k_out, opt.dropout_p, opt.average_pool)
+    regressor = load_regression_model(opt.arch, opt.k_out, opt.dropout_p, opt.average_pool, model=opt.model)
     if regressor is None:
         print('Unknown architecture specified')
         sys.exit(0)

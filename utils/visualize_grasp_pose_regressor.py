@@ -54,8 +54,6 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
         except:
             pickle_data = pickle.load(f)
     point_set = pickle_data['handJoints3D'].astype(np.float32)
-    if verbose:
-        print(point_set)
     joint_to_mean_dists = np.sqrt(np.sum((point_set - np.nanmean(point_set, axis=0)) ** 2, axis=1))
     invalid_joints = np.isnan(np.sum(point_set, axis=1))
     num_invalid_joints = np.count_nonzero(invalid_joints)
@@ -163,14 +161,15 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
                                             np.degrees(euler_prediction[2])))
 
     print('ERROR')
-    print('ADD {}'.format(error_def.add_error(gripper_transform, predicted_gripper_transform,
-                                              np.asarray(gripper_pcd.points))))
+    print('ADD {:.4f}'.format(error_def.add_error(gripper_transform, predicted_gripper_transform,
+                                                  np.asarray(gripper_pcd.points))))
     adds_error = error_def.add_symmetric_error(gripper_transform, predicted_gripper_transform,
                                                np.asarray(gripper_pcd.points))
-    print('ADD Symmetric {}'.format(adds_error))
-    print('Translation {}'.format(error_def.translation_error(gripper_transform, predicted_gripper_transform)))
-    print('Rotation {}'.format(np.degrees(error_def.rotation_error(gripper_transform,
-                                                                   predicted_gripper_transform)[0])))
+    print('ADD Symmetric {:.4f}'.format(adds_error))
+    print('Translation {:.4f}'.format(error_def.translation_error(gripper_transform, predicted_gripper_transform)*100))
+    rot_error = np.degrees(error_def.rotation_error(gripper_transform, predicted_gripper_transform))
+    print('Rotation {:.2f}'.format(rot_error[0]))
+    print('Rx {:.2f} Ry {:.2f} Rz {:.2f}'.format(rot_error[1], rot_error[2], rot_error[3]))
     if adds_error < 0.1 * DIAMETER:
         print('10%%: %s' % (PASSGREEN('PASS')))
     else:
@@ -238,8 +237,8 @@ if __name__ == '__main__':
     parser.add_argument('--est', action='store_true', help="use the estimated hand joints")
 
     opt = parser.parse_args()
-    opt.models_path = '/home/tpatten/v4rtemp/datasets/HandTracking/HO3D_v2/models'
-    opt.verbose = False
+    opt.models_path = os.path.join(opt.dataset, 'models')
+    opt.verbose = True
     print(opt)
 
     f_args = parse_model_filename(os.path.basename(opt.model))
@@ -257,46 +256,11 @@ if __name__ == '__main__':
     torch.manual_seed(opt.manualSeed)
 
     # Set up the model
-    regressor = None
-    if opt.arch == Archs.PN:
-        regressor = PointNetRegression(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Sym:
-        regressor = PointNetRegressionSym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_FC4:
-        regressor = PointNetRegressionFC4(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_FC4_Sym:
-        regressor = PointNetRegressionFC4Sym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_FC45:
-        regressor = PointNetRegressionFC45(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_FC45_Sym:
-        regressor = PointNetRegressionFC45Sym(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Small_3L:
-        regressor = PointNetRegressionSmall3Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Small_4L:
-        regressor = PointNetRegressionSmall4Layers(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Half:
-        regressor = PointNetRegressionHalf(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Half_FC4:
-        regressor = PointNetRegressionHalfFC4(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_FC4_256:
-        regressor = PointNetRegressionFC4_256(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_LReLu:
-        regressor = PointNetRegressionLeakyReLu(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Half_LReLu:
-        regressor = PointNetRegressionHalfLeakyReLu(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Flat:
-        regressor = PointNetRegressionFlat(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_NoPool:
-        regressor = PointNetRegressionNoPool(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_NoPoolSmall:
-        regressor = PointNetRegressionNoPoolSmall(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    elif opt.arch == Archs.PN_Flat5Layer:
-        regressor = PointNetRegressionFlat5Layer(k_out=opt.k_out, dropout_p=opt.dropout_p, avg_pool=opt.average_pool)
-    else:
+    regressor = load_regression_model(opt.arch, opt.k_out, opt.dropout_p, opt.average_pool, model=opt.model)
+    if regressor is None:
         print('Unknown architecture specified')
         sys.exit(0)
 
-    regressor.load_state_dict(torch.load(opt.model))
     regressor.cuda()
     regressor = regressor.eval()
 
@@ -316,6 +280,6 @@ if __name__ == '__main__':
             print('\n--- Processing file {} ---'.format(hand_filename))
             # Visualize
             visualize(meta_filename, hand_filename, grasp_pose_filename, opt.models_path, opt.verbose)
-            # sys.exit(0)
+            sys.exit(0)
         else:
             print('No hand estimate for {}'.format(hand_filename))
