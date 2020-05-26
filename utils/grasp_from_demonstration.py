@@ -20,6 +20,7 @@ OBJECT_TRANSLATION_THRESHOLD = 0.01
 HAND_VALID_THRESHOLD = 76.
 NUM_POINTS = 21
 THRESHOLD = 0.5
+MAX_FRAMES = 100
 wrist_indices = [0]
 thumb_indices = [13, 14, 15, 16]
 index_indices = [1, 2, 3, 17]
@@ -41,6 +42,7 @@ class GraspLearner:
         self.object_directory = os.path.join(self.dataset_directory, self.target_name, 'meta')
         self.rgb_directory = os.path.join(self.dataset_directory, self.target_name, 'rgb')
         self.depth_directory = os.path.join(self.dataset_directory, self.target_name, 'depth')
+        self.start_frame = args.start_frame
 
         # Load the regression model
         f_args = parse_model_filename(os.path.basename(args.pointnet_model))
@@ -82,7 +84,7 @@ class GraspLearner:
     def learn_grasp(self):
         # For each file
         pose_history = []
-        frame_id = 0
+        frame_id = self.start_frame
         while True:
             # Load the estimated hand and object poses
             frame_name = str(frame_id).zfill(4)
@@ -92,6 +94,7 @@ class GraspLearner:
 
             # If both the hand and object are valid
             if os.path.exists(hand_pose_filename) and os.path.exists(object_pose_filename):
+                print('-- {}'.format(hand_pose_filename))
                 if not pose_history:
                     # Load the hand and object poses
                     print('Start frame: {}'.format(frame_name))
@@ -104,8 +107,20 @@ class GraspLearner:
                         break
                     else:
                         pose_history.append((hand_pts, hand_score, object_pose))
+            else:
+                if not os.path.exists(hand_pose_filename):
+                    print('{} does not exit'.format(hand_pose_filename))
+                if not os.path.exists(object_pose_filename):
+                    print('{} does not exit'.format(object_pose_filename))
 
             frame_id = frame_id + 1
+            if frame_id >= self.start_frame + MAX_FRAMES:
+                print('Object did not move within {} frames'.format(MAX_FRAMES))
+                if len(pose_history) < 2:
+                    print('No pose estimates available in the window')
+                else:
+                    print('Maximum distance is {:2f} cm'.format(translation_delta * 100))
+                return
 
         print('End frame: {}'.format(str(frame_id).zfill(4)))
 
@@ -116,7 +131,7 @@ class GraspLearner:
             if e[1] < HAND_VALID_THRESHOLD:
                 frame_valid_idx = i
                 break
-        print('Valid hand frame: {}'.format(str(frame_valid_idx).zfill(4)))
+        print('Valid hand frame: {}'.format(str(frame_valid_idx + self.start_frame).zfill(4)))
 
         # Estimate the grasp at the last frame
         frame_end_idx_tf = self.predict_robot_grasp(pose_history[frame_end_idx][0])
@@ -190,6 +205,8 @@ class GraspLearner:
             if not np.isnan(pts_val[i][0]) and not np.isnan(pts_end[i][0]):
                 approach_vector += pts_end[i][0] - pts_val[i][0]
                 pair_count += 1
+
+        print('Approach vector\n', approach_vector / float(pair_count))
 
         return approach_vector / float(pair_count)
 
@@ -325,6 +342,7 @@ class HandPoseEstimator:
         self.net = cv2.dnn.readNetFromCaffe(self.proto_file, self.weights_file)
 
     def process(self, rgb_image, depth_image):
+        # Get image properties
         self.width = rgb_image.shape[1]
         self.height = rgb_image.shape[0]
         aspect_ratio = self.width / self.height
@@ -335,12 +353,12 @@ class HandPoseEstimator:
         net_input = cv2.dnn.blobFromImage(rgb_image, 1.0 / 255, (in_width, in_height), (0, 0, 0),
                                           swapRB=False, crop=False)
 
+        # Get the prediction
         self.net.setInput(net_input)
-
         pred = self.net.forward()
 
+        # Get the 3D coordinates
         points = self.get_keypoints(pred)
-
         points3D = self.get_world_coordinates(points, depth_image)
         coord_change_mat = np.array([[1., 0., 0.], [0, -1., 0.], [0., 0., -1.]], dtype=np.float32)
         points3D = points3D.dot(coord_change_mat.T)
@@ -453,13 +471,29 @@ if __name__ == '__main__':
     #                    help="path to the directory that stores the object model")
 
     opt = parser.parse_args()
-    opt.target = 'ABF10'
+    opt.target = 'GPMF10'
+    opt.start_frame = 0
     opt.pointnet_model = '/home/tpatten/Data/ICAS2020/Models/XABF_batch64_nEpoch85_regLoss_dropout0-3_augmentation_splitLoss_symmetry_lr0-01_ls20_lg0-5_arch17_newSplit_84.pth'
     opt.dataset = '/home/tpatten/Data/Hands/HO3D/train'
     opt.object_model = ''  # '/home/tpatten/Data/Hands/HO3D/models/021_bleach_cleanser/'
     opt.proto_file = '/home/tpatten/Code/hand-tracking/caffe_models/pose_deploy.prototxt'
     opt.weights_file = '/home/tpatten/Code/hand-tracking/caffe_models/pose_iter_102000.caffemodel'
     opt.verbose = True
+    opt.alternate_start = True
+
+    if opt.target == 'BB10':
+        opt.start_frame = 502
+
+    if opt.alternate_start:
+        if opt.target == 'BB10':
+            opt.start_frame = 973
+        elif opt.target == 'GPMF10':
+            opt.start_frame = 412
+        elif opt.target == 'GSF10':
+            opt.start_frame = 614
+        elif opt.target == 'MDF10':
+            opt.start_frame = 1005
+
     print(opt)
 
     learner = GraspLearner(opt)
