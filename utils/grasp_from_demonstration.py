@@ -73,7 +73,8 @@ class GraspLearner:
             self.obj_cloud_base = np.loadtxt(os.path.join(args.object_model, 'points.xyz'))
 
         # Load the point cloud of the robot gripper
-        self.gripper_cloud_base = np.loadtxt('hand_open_symmetric.xyz')
+        # self.gripper_cloud_base = np.loadtxt('hand_open_symmetric.xyz')
+        self.gripper_cloud_base = np.loadtxt('hand_open.xyz')
 
         # Get the demonstrated grasp
         self.learn_grasp()
@@ -121,7 +122,8 @@ class GraspLearner:
         frame_end_idx_tf = self.predict_robot_grasp(pose_history[frame_end_idx][0])
         frame_valid_idx_tf = self.predict_robot_grasp(pose_history[frame_valid_idx][0])
         estimated_tf, hand_joints = self.estimate_final_grasp_pose(frame_valid_idx_tf, frame_valid_idx, frame_end_idx)
-        self.visualize_learned_grasp((frame_valid_idx_tf, frame_end_idx_tf, estimated_tf),
+        object_frame_tf = np.matmul(np.linalg.inv(pose_history[frame_end_idx][2]), estimated_tf)
+        self.visualize_learned_grasp((frame_valid_idx_tf, frame_end_idx_tf, estimated_tf, object_frame_tf),
                                      pose_history[frame_valid_idx][2], hand_joints)
 
     def load_hand_object_poses(self, hand_pose_filename, object_pose_filename):
@@ -183,7 +185,6 @@ class GraspLearner:
     @staticmethod
     def estimate_approach_vector(pts_val, pts_end):
         approach_vector = np.zeros((3, ))
-        print(approach_vector)
         pair_count = 0
         for i in range(pts_val.shape[0]):
             if not np.isnan(pts_val[i][0]) and not np.isnan(pts_end[i][0]):
@@ -194,7 +195,7 @@ class GraspLearner:
 
     def visualize_learned_grasp(self, grasp_pose, object_transform, hand_joints=None):
         # Get the three grasp poses
-        frame_valid_idx_tf, frame_end_idx_tf, estimated_tf = grasp_pose
+        frame_valid_idx_tf, frame_end_idx_tf, estimated_tf, object_frame_tf = grasp_pose
 
         # Get the object point cloud
         obj_pcd = o3d.geometry.PointCloud()
@@ -275,6 +276,140 @@ class GraspLearner:
                         tt[0:3, 3] = trans3d
                         mm.transform(tt)
                         vis.add_geometry(mm)
+
+        # Visualize the grasp in the object's frame
+        obj_pcd_origin = o3d.geometry.PointCloud()
+        obj_pcd_origin.points = o3d.utility.Vector3dVector(self.obj_cloud_base)
+        obj_pcd_origin.paint_uniform_color([0.5, 0.5, 0.5])
+        vis.add_geometry(obj_pcd_origin)
+
+        object_frame_grasp_pcd = o3d.geometry.PointCloud()
+        object_frame_grasp_pcd.points = o3d.utility.Vector3dVector(self.gripper_cloud_base)
+        pts = np.asarray(object_frame_grasp_pcd.points)
+        pts = np.matmul(pts, np.linalg.inv(object_frame_tf[0:3, 0:3]))
+        pts += object_frame_tf[0:3, 3]
+        object_frame_grasp_pcd.points = o3d.utility.Vector3dVector(pts)
+        object_frame_grasp_pcd.paint_uniform_color([1., 0., 0.])
+        vis.add_geometry(object_frame_grasp_pcd)
+
+        # Visualize some random grasps
+        '''
+        # Random object pose
+        random_tf = np.eye(4)
+        random_tf[:3, :3] = tf3d.euler.euler2mat(np.random.uniform(-np.pi, np.pi),
+                                                 np.random.uniform(-np.pi, np.pi),
+                                                 np.random.uniform(-np.pi, np.pi))
+        random_tf[:3, 3] = np.random.uniform(-1, 1, (3,))
+        '''
+        for i in range(8):
+            # Random object pose
+            random_tf = np.eye(4)
+            random_tf[:3, :3] = tf3d.euler.euler2mat(np.random.uniform(-np.pi, np.pi),
+                                                     np.random.uniform(-np.pi, np.pi),
+                                                     np.random.uniform(-np.pi, np.pi))
+            random_tf[:3, 3] = np.random.uniform(-1, 1, (3,))
+
+            # Object cloud
+            obj_pcd_rand = o3d.geometry.PointCloud()
+            obj_pcd_rand.points = o3d.utility.Vector3dVector(self.obj_cloud_base)
+            pts = np.asarray(obj_pcd_rand.points)
+            pts = np.matmul(pts, np.linalg.inv(random_tf[:3, :3]))
+            pts += random_tf[:3, 3]
+            #pts += np.ones((3, )) * (i + 1) * 0.25
+            obj_pcd_rand.points = o3d.utility.Vector3dVector(pts)
+            obj_pcd_rand.paint_uniform_color([0.7, 0.7, 0.7])
+            vis.add_geometry(obj_pcd_rand)
+
+            # Gripper cloud
+            '''
+            if i == 0:
+                grasp_tf = np.matmul(random_tf, estimated_tf[:3, :3])
+            elif i == 1:
+                grasp_tf = np.matmul(np.linalg.inv(random_tf), estimated_tf[:3, :3])
+            elif i == 2:
+                grasp_tf = np.matmul(random_tf, np.linalg.inv(estimated_tf[:3, :3]))
+            elif i == 3:
+                grasp_tf = np.matmul(np.linalg.inv(random_tf), np.linalg.inv(estimated_tf[:3, :3]))
+            elif i == 4:
+                grasp_tf = np.matmul(estimated_tf[:3, :3], random_tf)
+            elif i == 5:
+                grasp_tf = np.matmul(np.linalg.inv(estimated_tf[:3, :3]), random_tf)
+            elif i == 6:
+                grasp_tf = np.matmul(estimated_tf[:3, :3], np.linalg.inv(random_tf))
+            elif i == 7:
+                grasp_tf = np.matmul(np.linalg.inv(estimated_tf[:3, :3]), np.linalg.inv(random_tf))
+            gripper_pcd_rand = o3d.geometry.PointCloud()
+            gripper_pcd_rand.points = o3d.utility.Vector3dVector(np.copy(self.gripper_cloud_base))
+            pts = np.asarray(gripper_pcd_rand.points)
+            pts = np.matmul(pts, np.linalg.inv(grasp_tf[:3, :3]))
+            #pts += grasp_tf[0:3, 3]
+            pts += np.ones((3,)) * (i + 1) * 0.25
+            gripper_pcd_rand.points = o3d.utility.Vector3dVector(pts)
+            '''
+
+            '''
+            gripper_pcd_rand = o3d.geometry.PointCloud()
+            gripper_pcd_rand.points = o3d.utility.Vector3dVector(self.gripper_cloud_base)
+            pts = np.asarray(gripper_pcd_rand.points)
+
+            if i == 0:
+                pts = np.matmul(pts, object_frame_tf[:3, :3])
+                pts = np.matmul(pts, random_tf[:3, :3])
+            elif i == 1:
+                pts = np.matmul(pts, np.linalg.inv(object_frame_tf[:3, :3]))
+                pts = np.matmul(pts, random_tf[:3, :3])
+            elif i == 2:
+                pts = np.matmul(pts, object_frame_tf[:3, :3])
+                pts = np.matmul(pts, np.linalg.inv(random_tf[:3, :3]))
+            elif i == 3:  ## CORRECT!!!
+                pts = np.matmul(pts, np.linalg.inv(object_frame_tf[:3, :3]))
+                pts += object_frame_tf[0:3, 3]
+                pts = np.matmul(pts, np.linalg.inv(random_tf[:3, :3]))
+                pts += random_tf[0:3, 3]
+            elif i == 4:
+                pts = np.matmul(pts, random_tf[:3, :3])
+                pts = np.matmul(pts, object_frame_tf[:3, :3])
+            elif i == 5:
+                pts = np.matmul(pts, random_tf[:3, :3])
+                pts = np.matmul(pts, np.linalg.inv(object_frame_tf[:3, :3]))
+            elif i == 6:
+                pts = np.matmul(pts, np.linalg.inv(random_tf[:3, :3]))
+                pts = np.matmul(pts, object_frame_tf[:3, :3])
+            elif i == 7:
+                pts = np.matmul(pts, np.linalg.inv(random_tf[:3, :3]))
+                pts = np.matmul(pts, np.linalg.inv(object_frame_tf[:3, :3]))
+
+            #pts += np.ones((3,)) * (i + 1) * 0.25
+            gripper_pcd_rand.points = o3d.utility.Vector3dVector(pts)
+            '''
+
+            gripper_pcd_rand = o3d.geometry.PointCloud()
+            gripper_pcd_rand.points = o3d.utility.Vector3dVector(np.copy(self.gripper_cloud_base))
+            pts = np.asarray(gripper_pcd_rand.points)
+            pts = np.matmul(pts, np.linalg.inv(object_frame_tf[:3, :3]))
+            pts += object_frame_tf[0:3, 3]
+            pts = np.matmul(pts, np.linalg.inv(random_tf[:3, :3]))
+            pts += random_tf[0:3, 3]
+            gripper_pcd_rand.points = o3d.utility.Vector3dVector(pts)
+
+            if i == 0:
+                gripper_pcd_rand.paint_uniform_color([0.7, 0.3, 0.3])
+            elif i == 1:
+                gripper_pcd_rand.paint_uniform_color([0.3, 0.7, 0.3])
+            elif i == 2:
+                gripper_pcd_rand.paint_uniform_color([0.3, 0.3, 0.7])
+            elif i == 3:
+                gripper_pcd_rand.paint_uniform_color([0.7, 0.7, 0.3])
+            elif i == 4:
+                gripper_pcd_rand.paint_uniform_color([0.7, 0.3, 0.7])
+            elif i == 5:
+                gripper_pcd_rand.paint_uniform_color([0.3, 0.7, 0.7])
+            elif i == 6:
+                gripper_pcd_rand.paint_uniform_color([0.3, 0.3, 0.3])
+            elif i == 7:
+                gripper_pcd_rand.paint_uniform_color([0.7, 0.2, 0.2])
+            #gripper_pcd_rand.paint_uniform_color([0.7, 0.3, 0.3])
+            vis.add_geometry(gripper_pcd_rand)
 
         # End
         vis.run()
