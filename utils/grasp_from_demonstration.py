@@ -42,6 +42,7 @@ class GraspLearner:
         self.object_directory = os.path.join(self.dataset_directory, self.target_name, 'meta')
         self.rgb_directory = os.path.join(self.dataset_directory, self.target_name, 'rgb')
         self.depth_directory = os.path.join(self.dataset_directory, self.target_name, 'depth')
+        self.ground_truth_prefix = args.ground_truth_prefix
         self.start_frame = args.start_frame
 
         # Load the regression model
@@ -148,9 +149,14 @@ class GraspLearner:
         object_frame_tf = np.matmul(np.linalg.inv(pose_history[frame_end_idx][2]), estimated_tf)
 
         # Get the ground truth grasp pose
-        gt_filename = os.path.join(self.object_directory, str(pose_history[frame_end_idx][-1]).zfill(4) + '.pkl')
-        gt_pts = load_pickle_data(gt_filename)['handJoints3D'].astype(np.float32)
-        ground_truth_tf = self.predict_robot_grasp(gt_pts)
+        if self.ground_truth_prefix != '':
+            gt_filename = os.path.join(self.dataset_directory, self.target_name,
+                self.ground_truth_prefix + str(pose_history[frame_end_idx][-1]).zfill(4) + '.pkl')
+            ground_truth_tf = load_pickle_data(gt_filename).reshape(4, 4)
+            # Calculate the error
+            self.compute_error(ground_truth_tf, estimated_tf)
+        else:
+            ground_truth_tf = None
 
         # Visualize the results
         self.visualize_learned_grasp(
@@ -229,6 +235,22 @@ class GraspLearner:
 
         return approach_vector / float(pair_count)
 
+    def compute_error(self, gt_tf, est_tf):
+        add_error = error_def.add_error(gt_tf, est_tf, self.gripper_cloud_base)
+        adds_error = error_def.add_symmetric_error(gt_tf, est_tf, self.gripper_cloud_base)
+        t_error = error_def.translation_error(gt_tf, est_tf)
+        r_error = error_def.rotation_error(gt_tf, est_tf)
+
+        print('ERROR')
+        print('ADD {:.4f}'.format(add_error))
+        print('ADD Symmetric {:.4f}'.format(adds_error))
+        print('Translation {:.4f} cm'.format(t_error * 100))
+        print('Rotation {:.2f} deg'.format(np.degrees(r_error[0])))
+        print('Rx {:.2f} Ry {:.2f} Rz {:.2f}'.format(
+            np.degrees(r_error[1]), np.degrees(r_error[2]), np.degrees(r_error[3])))
+
+        return add_error, adds_error, t_error, r_error
+
     def visualize_learned_grasp(self, grasp_pose, object_transform, hand_joints=None):
         # Get the three grasp poses
         frame_valid_idx_tf, frame_end_idx_tf, estimated_tf, object_frame_tf, ground_truth_tf = grasp_pose
@@ -282,8 +304,9 @@ class GraspLearner:
         vis.add_geometry(gripper_pcd_estimated)
 
         # Ground truth grasp pose
-        gripper_pcd_gt.paint_uniform_color([0., 1., 0.])
-        vis.add_geometry(gripper_pcd_gt)
+        if gripper_pcd_gt is not None:
+            gripper_pcd_gt.paint_uniform_color([0., 1., 0.])
+            vis.add_geometry(gripper_pcd_gt)
 
         # Hand joints
         if hand_joints is not None:
@@ -504,6 +527,7 @@ if __name__ == '__main__':
     opt.pointnet_model = '/home/tpatten/Data/ICAS2020/Models/XABF_batch64_nEpoch85_regLoss_dropout0-3_augmentation_splitLoss_symmetry_lr0-01_ls20_lg0-5_arch17_newSplit_84.pth'
     opt.dataset = '/home/tpatten/Data/Hands/HO3D/train'
     opt.object_model = ''  # '/home/tpatten/Data/Hands/HO3D/models/021_bleach_cleanser/'
+    opt.ground_truth_prefix = 'meta/grasp_bl_'
     opt.proto_file = '/home/tpatten/Code/hand-tracking/caffe_models/pose_deploy.prototxt'
     opt.weights_file = '/home/tpatten/Code/hand-tracking/caffe_models/pose_iter_102000.caffemodel'
     opt.verbose = True
