@@ -90,23 +90,26 @@ class GraspLearner:
             frame_name = str(frame_id).zfill(4)
             hand_pose_filename = os.path.join(self.hand_directory, frame_name + '.pkl')
             object_pose_filename = os.path.join(self.object_directory, frame_name + '.pkl')
-            # print('-- {}'.format(hand_pose_filename))
 
             # If both the hand and object are valid
             if os.path.exists(hand_pose_filename) and os.path.exists(object_pose_filename):
                 print('-- {}'.format(hand_pose_filename))
-                if not pose_history:
-                    # Load the hand and object poses
-                    print('Start frame: {}'.format(frame_name))
-                    pose_history.append(self.load_hand_object_poses(hand_pose_filename, object_pose_filename))
-                else:
-                    # Get the difference in pose of the object in this frame compared to the previous frame
-                    hand_pts, hand_score, object_pose = self.load_hand_object_poses(hand_pose_filename, object_pose_filename)
-                    translation_delta = np.linalg.norm(pose_history[0][2][:3, 3] - object_pose[:3, 3])
-                    if translation_delta > OBJECT_TRANSLATION_THRESHOLD:
-                        break
+                # Get the hand points, score and object pose
+                hand_pts, hand_score, object_pose = self.load_hand_object_poses(hand_pose_filename,
+                                                                                object_pose_filename)
+                # If the hand is valid
+                if not np.isnan(hand_pts).all():
+                    # If no pose has been recorded yet
+                    if not pose_history:
+                        print('Start frame: {}'.format(frame_name))
+                        pose_history.append((hand_pts, hand_score, object_pose, frame_id))
+                    # Otherwise, get the difference in pose of the object in this frame compared to the first frame
                     else:
-                        pose_history.append((hand_pts, hand_score, object_pose))
+                        translation_delta = np.linalg.norm(pose_history[0][2][:3, 3] - object_pose[:3, 3])
+                        if translation_delta > OBJECT_TRANSLATION_THRESHOLD:
+                            break
+                        else:
+                            pose_history.append((hand_pts, hand_score, object_pose, frame_id))
             else:
                 if not os.path.exists(hand_pose_filename):
                     print('{} does not exit'.format(hand_pose_filename))
@@ -131,12 +134,13 @@ class GraspLearner:
             if e[1] < HAND_VALID_THRESHOLD:
                 frame_valid_idx = i
                 break
-        print('Valid hand frame: {}'.format(str(frame_valid_idx + self.start_frame).zfill(4)))
+        print('Valid hand frame: {}'.format(str(pose_history[frame_valid_idx][-1]).zfill(4)))
 
         # Estimate the grasp at the last frame
         frame_end_idx_tf = self.predict_robot_grasp(pose_history[frame_end_idx][0])
         frame_valid_idx_tf = self.predict_robot_grasp(pose_history[frame_valid_idx][0])
-        estimated_tf, hand_joints = self.estimate_final_grasp_pose(frame_valid_idx_tf, frame_valid_idx, frame_end_idx)
+        estimated_tf, hand_joints = self.estimate_final_grasp_pose(
+            frame_valid_idx_tf, pose_history[frame_valid_idx][-1], pose_history[frame_end_idx][-1])
         object_frame_tf = np.matmul(np.linalg.inv(pose_history[frame_end_idx][2]), estimated_tf)
         self.visualize_learned_grasp((frame_valid_idx_tf, frame_end_idx_tf, estimated_tf, object_frame_tf),
                                      pose_history[frame_valid_idx][2], hand_joints)
@@ -205,6 +209,9 @@ class GraspLearner:
             if not np.isnan(pts_val[i][0]) and not np.isnan(pts_end[i][0]):
                 approach_vector += pts_end[i][0] - pts_val[i][0]
                 pair_count += 1
+                
+        if pair_count == 0:
+            print('No available pairs between frames')
 
         print('Approach vector\n', approach_vector / float(pair_count))
 
@@ -471,7 +478,7 @@ if __name__ == '__main__':
     #                    help="path to the directory that stores the object model")
 
     opt = parser.parse_args()
-    opt.target = 'GPMF10'
+    opt.target = 'ABF10'
     opt.start_frame = 0
     opt.pointnet_model = '/home/tpatten/Data/ICAS2020/Models/XABF_batch64_nEpoch85_regLoss_dropout0-3_augmentation_splitLoss_symmetry_lr0-01_ls20_lg0-5_arch17_newSplit_84.pth'
     opt.dataset = '/home/tpatten/Data/Hands/HO3D/train'
@@ -479,7 +486,7 @@ if __name__ == '__main__':
     opt.proto_file = '/home/tpatten/Code/hand-tracking/caffe_models/pose_deploy.prototxt'
     opt.weights_file = '/home/tpatten/Code/hand-tracking/caffe_models/pose_iter_102000.caffemodel'
     opt.verbose = True
-    opt.alternate_start = True
+    opt.alternate_start = False
 
     if opt.target == 'BB10':
         opt.start_frame = 502
