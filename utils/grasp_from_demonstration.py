@@ -136,14 +136,26 @@ class GraspLearner:
                 break
         print('Valid hand frame: {}'.format(str(pose_history[frame_valid_idx][-1]).zfill(4)))
 
-        # Estimate the grasp at the last frame
+        # Estimate the grasp at the end and valid frames
         frame_end_idx_tf = self.predict_robot_grasp(pose_history[frame_end_idx][0])
         frame_valid_idx_tf = self.predict_robot_grasp(pose_history[frame_valid_idx][0])
+
+        # Estimate the final grasp using the approach vector
         estimated_tf, hand_joints = self.estimate_final_grasp_pose(
             frame_valid_idx_tf, pose_history[frame_valid_idx][-1], pose_history[frame_end_idx][-1])
+
+        # Transform to the object coordinate system
         object_frame_tf = np.matmul(np.linalg.inv(pose_history[frame_end_idx][2]), estimated_tf)
-        self.visualize_learned_grasp((frame_valid_idx_tf, frame_end_idx_tf, estimated_tf, object_frame_tf),
-                                     pose_history[frame_valid_idx][2], hand_joints)
+
+        # Get the ground truth grasp pose
+        gt_filename = os.path.join(self.object_directory, str(pose_history[frame_end_idx][-1]).zfill(4) + '.pkl')
+        gt_pts = load_pickle_data(gt_filename)['handJoints3D'].astype(np.float32)
+        ground_truth_tf = self.predict_robot_grasp(gt_pts)
+
+        # Visualize the results
+        self.visualize_learned_grasp(
+            (frame_valid_idx_tf, frame_end_idx_tf, estimated_tf, object_frame_tf, ground_truth_tf),
+            pose_history[frame_valid_idx][2], hand_joints)
 
     def load_hand_object_poses(self, hand_pose_filename, object_pose_filename):
         # Get the joints of the hand
@@ -219,7 +231,7 @@ class GraspLearner:
 
     def visualize_learned_grasp(self, grasp_pose, object_transform, hand_joints=None):
         # Get the three grasp poses
-        frame_valid_idx_tf, frame_end_idx_tf, estimated_tf, object_frame_tf = grasp_pose
+        frame_valid_idx_tf, frame_end_idx_tf, estimated_tf, object_frame_tf, ground_truth_tf = grasp_pose
 
         # Get the object point cloud
         obj_pcd = o3d.geometry.PointCloud()
@@ -241,6 +253,11 @@ class GraspLearner:
         gripper_pcd_estimated.points = o3d.utility.Vector3dVector(self.gripper_cloud_base)
         gripper_pcd_estimated.transform(estimated_tf)
 
+        # Ground truth grasp
+        gripper_pcd_gt = o3d.geometry.PointCloud()
+        gripper_pcd_gt.points = o3d.utility.Vector3dVector(self.gripper_cloud_base)
+        gripper_pcd_gt.transform(ground_truth_tf)
+
         # Visualize
         vis = o3d.visualization.Visualizer()
         vis.create_window()
@@ -253,16 +270,20 @@ class GraspLearner:
         vis.add_geometry(obj_pcd)
 
         # Final frame grasp pose
-        gripper_pcd_end.paint_uniform_color([1., 0., 0.])
+        gripper_pcd_end.paint_uniform_color([0., 0., 1.])
         vis.add_geometry(gripper_pcd_end)
 
         # Latest valid frame grasp pose
-        gripper_pcd_valid.paint_uniform_color([0., 1., 0.])
+        gripper_pcd_valid.paint_uniform_color([0., 1., 1.])
         vis.add_geometry(gripper_pcd_valid)
 
         # Final estimated grasp pose
-        gripper_pcd_estimated.paint_uniform_color([0., 0., 1.])
+        gripper_pcd_estimated.paint_uniform_color([1., 0., 0.])
         vis.add_geometry(gripper_pcd_estimated)
+
+        # Ground truth grasp pose
+        gripper_pcd_gt.paint_uniform_color([0., 1., 0.])
+        vis.add_geometry(gripper_pcd_gt)
 
         # Hand joints
         if hand_joints is not None:
