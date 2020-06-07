@@ -48,3 +48,5 @@ https://stackoverflow.com/questions/33906111/how-do-i-estimate-positions-of-two-
 
 HAND TRACKING
 export LD_LIBRARY_PATH=/home/tpatten/Code/hand-tracking/lib:$LD_LIBRARY_PATH
+
+nvidia-docker run -it -v /home/tpatten/Code/Mask_RCNN:/Mask_RCNN -v /home/tpatten/Data:/bop pix2pose:latest bash

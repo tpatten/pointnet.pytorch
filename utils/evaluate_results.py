@@ -12,13 +12,21 @@ add_lim = 0.5
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--file', type=str, default='results/results.pkl', help='pickle file with stored results')
+# /home/tpatten/Data/ICAS2020/Results/ablation_architecture/
 
 opt = parser.parse_args()
 print(opt)
 
-add_th_base = np.linspace(0, add_lim, num_steps, endpoint=True, dtype=np.float32)
-add_th = gripper_diameter * add_th_base
-adds_th = gripper_diameter * add_th_base
+#add_th_base = np.linspace(0, add_lim, num_steps, endpoint=True, dtype=np.float32)
+#add_th = gripper_diameter * add_th_base
+#adds_th = gripper_diameter * add_th_base
+#tr_th_base = np.linspace(0, 0.5, num_steps, endpoint=True, dtype=np.float32)
+#t_th = tr_th_base
+#r_th = np.radians(100*tr_th_base)
+
+num_steps = 26
+add_th = np.linspace(0, 0.5 * gripper_diameter, num_steps, endpoint=True, dtype=np.float32)
+adds_th = add_th
 tr_th_base = np.linspace(0, 0.5, num_steps, endpoint=True, dtype=np.float32)
 t_th = tr_th_base
 r_th = np.radians(100*tr_th_base)

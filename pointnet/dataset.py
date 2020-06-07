@@ -374,7 +374,7 @@ class HO3DDataset(data.Dataset):
         if subset_name_up == 'SHSU':
             subset_name_up = 'ShSu'
         elif subset_name_up == 'XSHSU':
-            subset_name_up = 'xShSu'
+            subset_name_up = 'XShSu'
 
         suffix = 'grasp_train.txt'
         if split == 'test':
