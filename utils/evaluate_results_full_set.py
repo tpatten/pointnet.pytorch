@@ -6,12 +6,14 @@ from matplotlib import pyplot as plt
 from enum import Enum
 
 ABLATION_DIR = '/home/tpatten/Data/ICAS2020/Experiments/ablation'
+HAND_INPUT_DIR = '/home/tpatten/Data/ICAS2020/Experiments/hand_input'
 
 ADDS_CODE = 'adds'
 TR_CODE = 'tr'
 TRXYZ_CODE = 'trxyz'
 
 DPI = 100 # 200
+FIG_SIZE = (10, 5)
 
 def plot_ablation_architecture():
     targets = ['abf', 'bb', 'gpmf', 'gsf']
@@ -19,14 +21,14 @@ def plot_ablation_architecture():
     nets = [[0, 1, 2, 3], [3, 4, 5, 6]]
 
     net_names = ['PointNet', 'No Pool', 'Split', 'Flat', 'w/o dropout', 'w/o aug', 'w/o sym']
-    net_colors = [[0., 0., 0.],     # PointNet
+    net_colors = [[0., 0., 0.],        # PointNet
                   [0.38, 0.66, 0.34],  # PointNet No Pool
                   [0.98, 0.74, 0.27],  # PointNet Split
                   [0.40, 0.53, 0.94],  # PointNet Flat
                   [0.40, 0.53, 0.94],  # w/o dropout
                   [0.40, 0.53, 0.94],  # w/o aug
-                  [0.40, 0.53, 0.94],  # w/o sym
-    ]
+                  [0.40, 0.53, 0.94]   # w/o sym
+                 ]
     net_styles = ['-', '-', '-', '-', '--', '-.', ':']
 
     for m in metrics:
@@ -39,7 +41,7 @@ def plot_ablation_architecture():
         # For each set of networks to compare
         for net_set in nets:
             # For each network variation
-            fig = plt.figure(figsize=(7, 5), dpi=DPI, facecolor='w', edgecolor='k')
+            fig = plt.figure(figsize=FIG_SIZE, dpi=DPI, facecolor='w', edgecolor='k')
             ax = fig.add_subplot(111)
 
             for n in net_set:
@@ -73,7 +75,75 @@ def plot_ablation_architecture():
 
 
 def plot_ablation_hand_input():
-    pass
+    targets = ['abf']
+    metrics = [ADDS_CODE]
+    joints = [[0, 1, 4, 7, 10], [0, 2, 3, 5, 6, 8, 9, 11, 12]]
+    # 0 all
+    # 1 w/o TIPs, 2 TIPs, 3 TIPs + W
+    # 4 w/o DIPs, 5 DIPs, 6 DIPs + W
+    # 7 w/o PIPs, 8 PIPs, 9 PIPs + W
+    # 10 w/o MCPs, 11 MCPs, 12 MCPs + W
+
+    joint_names = ['All',
+                   'TIPs', 'TIPs', 'TIPs + W',
+                   'DIPs', 'DIPs', 'DIPs + W',
+                   'PIPs', 'PIPs', 'PIPs + W',
+                   'MCPs', 'MCPs', 'MCPs + W']
+    joint_colors = [[0., 0., 0.],        # All
+                    [0.91, 0.28, 0.24],  # \TIPs
+                    [0.91, 0.28, 0.24],  # TIPs
+                    [0.91, 0.28, 0.24],  # TIPs + W
+                    [0.40, 0.53, 0.94],  # \DIPs
+                    [0.40, 0.53, 0.94],  # DIPs
+                    [0.40, 0.53, 0.94],  # DIPs + W
+                    [0.98, 0.74, 0.27],  # \PIPs
+                    [0.98, 0.74, 0.27],  # PIPs
+                    [0.98, 0.74, 0.27],  # PIPs + W
+                    [0.38, 0.66, 0.34],  # \MCPs
+                    [0.38, 0.66, 0.34],  # MCPs
+                    [0.38, 0.66, 0.34]   # MCPs + W
+                   ]
+    joint_styles = ['-', '-', '--', ':', '-', '--', ':', '-', '--', ':', '-', '--', ':']
+
+    for m in metrics:
+        metric_vals = []
+        for t in targets:
+            filename = os.path.join(HAND_INPUT_DIR, m, t + '.txt')
+            vals = np.loadtxt(filename)
+            metric_vals.append(vals)
+
+        # For each set of joints to compare
+        for joint_set in joints:
+            # For each network variation
+            fig = plt.figure(figsize=FIG_SIZE, dpi=DPI, facecolor='w', edgecolor='k')
+            ax = fig.add_subplot(111)
+
+            for j in joint_set:
+                # Collect the values
+                joint_vals = np.zeros((metric_vals[0].shape[0], len(metric_vals)))
+                for i in range(len(metric_vals)):
+                    joint_vals[:, i] = metric_vals[i][:, j]
+
+                # Get the mean
+                mean = np.mean(joint_vals, axis=1)
+
+                # Add to plot
+                x = np.linspace(0, 50, mean.shape[0])
+                ax.plot(x, mean, linewidth=3, color=joint_colors[j], linestyle=joint_styles[j], label=joint_names[j])
+
+            # Add legend and axes labels
+            handles, labels = ax.get_legend_handles_labels()
+            # plt.figlegend(handles, labels, loc='upper right', ncol=1,
+            #              labelspacing=0.8, fontsize=14, bbox_to_anchor=(0.9, 0.9))
+            plt.figlegend(handles, labels, loc='lower right', ncol=1,
+                          labelspacing=0.8, fontsize=14, bbox_to_anchor=(0.9, 0.1))
+
+            plt.ylabel(r'Accuracy', fontsize=16)
+            if m == ADDS_CODE:
+                plt.xlabel(r'ADDS threshold (\% diameter)', fontsize=16)
+            else:
+                plt.xlabel(r'Translation/rotation threshold (cm/degree)', fontsize=16)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
