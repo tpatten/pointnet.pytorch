@@ -1,6 +1,76 @@
 from __future__ import print_function
 import argparse
 import os
+import numpy as np
+from matplotlib import pyplot as plt
+
+targets = ['abf', 'bb', 'gpmf', 'gsf']
+metrics = ['adds']
+nets = [0, 1, 2, 3]
+
+net_names = ['PointNet', 'No Pool', 'Split', 'Flat', 'w/o dropout', 'w/o aug', 'w/o sym']
+net_colors = [[0., 0., 0.],     # PointNet
+              [0.1, 0.9, 0.1],  # PointNet No Pool
+              [0.9, 0.9, 0.1],  # PointNet Split
+              [0.1, 0.1, 0.9],  # PointNet Flat
+              [0.1, 0.1, 0.9],  # w/o dropout
+              [0.1, 0.1, 0.9],  # w/o aug
+              [0.1, 0.1, 0.9],  # w/o sym
+]
+net_styles = ['-', '-', '-', '-', '--', '-.', ':']
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--dir', type=str, default='/home/tpatten/Data/ICAS2020/Experiments/ablation',
+                    help='directory where all the set of results are stored')
+
+opt = parser.parse_args()
+print(opt)
+
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
+
+for m in metrics:
+    metric_vals = []
+    for t in targets:
+        filename = os.path.join(opt.dir, m, t + '.txt')
+        vals = np.loadtxt(filename)
+        metric_vals.append(vals)
+
+    # For each network variation
+    fig = plt.figure(figsize=(14, 10))  # , dpi=80, facecolor='w', edgecolor='k')
+    ax = fig.add_subplot(111)
+
+    for n in nets:
+        # Collect the values
+        net_vals = np.zeros((metric_vals[0].shape[0], len(metric_vals)))
+        for i in range(len(metric_vals)):
+            net_vals[:, i] = metric_vals[i][:, n]
+
+        # Get the mean
+        mean = np.mean(net_vals, axis=1)
+        std = np.std(net_vals, axis=1)
+
+        # Add to plot
+        x = np.linspace(0, 50, mean.shape[0])
+        ax.plot(x, mean, linewidth=2, color=net_colors[n], linestyle=net_styles[n], label=net_names[n])
+        #ax.fill_between(x, mean - std, mean + std, interpolate=True, alpha=0.3,
+        #                facecolor=net_colors[n], edgecolor=net_colors[n])
+
+    # Add legend and axes labels
+    handles, labels = ax.get_legend_handles_labels()
+    plt.figlegend(handles, labels, loc='upper right', ncol=1,
+                  labelspacing=0.8, fontsize=14, bbox_to_anchor=(0.9, 0.9))
+    plt.xlabel(r'\% diameter', fontsize=16)
+    plt.ylabel(r'ADDS', fontsize=16)
+
+plt.show()
+
+
+
+'''
+from __future__ import print_function
+import argparse
+import os
 from os.path import isfile, join, splitext
 import random
 import numpy as np
@@ -120,3 +190,4 @@ print('{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(
 if save_all_errors:
     with open(join(opt.dir, 'errors.pkl'), 'wb') as f:
         pickle.dump(all_errors, f)
+'''
