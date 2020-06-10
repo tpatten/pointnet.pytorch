@@ -17,8 +17,8 @@ FIG_SIZE = (8, 6)
 LINE_WIDTH = 2
 
 def plot_ablation_architecture():
-    targets = ['abf', 'bb', 'gpmf', 'gsf']
-    metrics = [ADDS_CODE]
+    targets = ['abf', 'bb', 'gpmf', 'gsf', 'mdf', 'shsu']
+    metrics = [ADDS_CODE, TR_CODE, TRXYZ_CODE]
     nets = [[0, 1, 3], [3, 2, 4, 5, 6]]
 
     net_names = ['baseline', 'baseline (no pool)', 'split heads', 'sorted + MLP', 'w/o dropout', 'w/o aug', 'w/o sym']
@@ -32,6 +32,7 @@ def plot_ablation_architecture():
                  ]
     net_styles = ['-', '-', '-', '-', '-', '-', '-']
 
+    fig_count = 0
     for m in metrics:
         metric_vals = []
         for t in targets:
@@ -63,17 +64,22 @@ def plot_ablation_architecture():
 
             # Add legend and axes labels
             handles, labels = ax.get_legend_handles_labels()
-            #plt.figlegend(handles, labels, loc='upper right', ncol=1,
-            #              labelspacing=0.8, fontsize=14, bbox_to_anchor=(0.9, 0.9))
             plt.figlegend(handles, labels, loc='lower right', ncol=1,
                           labelspacing=0.1, fontsize=16, bbox_to_anchor=(0.9, 0.1))
 
             plt.ylabel(r'Accuracy', fontsize=18)
+            plt.yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], ('0.0', '0.2', '0.4', '0.6', '0.8', '1.0'))
             if m == ADDS_CODE:
-                plt.xlabel(r'ADD threshold (\% diameter)', fontsize=18)
+                plt.xlabel(r'ADD threshold', fontsize=18)
+                plt.xticks([0, 10, 20, 30, 40, 50], ('0\%', '10\%', '20\%', '30\%', '40\%', '50\%'))
             else:
                 plt.xlabel(r'Translation/rotation threshold (cm/degree)', fontsize=18)
             ax.tick_params(axis='both', which='major', labelsize=16)
+            figure_name = '/home/tpatten/Data/ICAS2020/Experiments/figure' + str(fig_count) + '.pdf'
+            plt.savefig(figure_name)
+            os.system('pdfcrop ' + figure_name)
+            os.system('rm -rf ' + figure_name)
+            fig_count += 1
 
 
 def plot_ablation_hand_input():
@@ -107,6 +113,7 @@ def plot_ablation_hand_input():
                    ]
     joint_styles = ['-', '-', '--', ':', '-', '--', ':', '-', '--', ':', '-', '--', ':']
 
+    fig_count = 0
     for m in metrics:
         metric_vals = []
         for t in targets:
@@ -142,11 +149,18 @@ def plot_ablation_hand_input():
                           labelspacing=0.1, fontsize=16, bbox_to_anchor=(0.9, 0.1))
 
             plt.ylabel(r'Accuracy', fontsize=18)
+            plt.yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], ('0.0', '0.2', '0.4', '0.6', '0.8', '1.0'))
             if m == ADDS_CODE:
-                plt.xlabel(r'ADD threshold (\% diameter)', fontsize=18)
+                plt.xlabel(r'ADD threshold', fontsize=18)
+                plt.xticks([0, 10, 20, 30, 40, 50], ('0\%', '10\%', '20\%', '30\%', '40\%', '50\%'))
             else:
                 plt.xlabel(r'Translation/rotation threshold (cm/degree)', fontsize=18)
             ax.tick_params(axis='both', which='major', labelsize=16)
+            figure_name = '/home/tpatten/Data/ICAS2020/Experiments/figure' + str(fig_count) + '.pdf'
+            plt.savefig(figure_name)
+            os.system('pdfcrop ' + figure_name)
+            os.system('rm -rf ' + figure_name)
+            fig_count += 1
 
 
 if __name__ == '__main__':

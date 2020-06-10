@@ -908,7 +908,7 @@ class PointNetRegressionHalfLeakyReLu(nn.Module):
 
 # PN_Flat = 14
 class PointNetRegressionFlat(nn.Module):
-    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False):
+    def __init__(self, k_out=9, dropout_p=0.0, avg_pool=False, k_in=63):
         super(PointNetRegressionFlat, self).__init__()
         self.dropout_p = dropout_p
         self.avg_pool = avg_pool
