@@ -13,23 +13,24 @@ TR_CODE = 'tr'
 TRXYZ_CODE = 'trxyz'
 
 DPI = 100 # 200
-FIG_SIZE = (10, 5)
+FIG_SIZE = (8, 6)
+LINE_WIDTH = 2
 
 def plot_ablation_architecture():
     targets = ['abf', 'bb', 'gpmf', 'gsf']
     metrics = [ADDS_CODE]
-    nets = [[0, 1, 2, 3], [3, 4, 5, 6]]
+    nets = [[0, 1, 3], [3, 2, 4, 5, 6]]
 
-    net_names = ['PointNet', 'No Pool', 'Split', 'Flat', 'w/o dropout', 'w/o aug', 'w/o sym']
-    net_colors = [[0., 0., 0.],        # PointNet
-                  [0.38, 0.66, 0.34],  # PointNet No Pool
-                  [0.98, 0.74, 0.27],  # PointNet Split
-                  [0.40, 0.53, 0.94],  # PointNet Flat
-                  [0.40, 0.53, 0.94],  # w/o dropout
-                  [0.40, 0.53, 0.94],  # w/o aug
-                  [0.40, 0.53, 0.94]   # w/o sym
+    net_names = ['baseline', 'baseline (no pool)', 'split heads', 'sorted + MLP', 'w/o dropout', 'w/o aug', 'w/o sym']
+    net_colors = [[0.00, 0.00, 0.00],  # PointNet
+                  [0.90, 0.60, 0.00],  # PointNet No Pool
+                  [0.00, 0.60, 0.50],  # PointNet Split
+                  [0.35, 0.70, 0.90],  # PointNet Flat
+                  [0.95, 0.90, 0.25],  # w/o dropout
+                  [0.80, 0.40, 0.00],  # w/o aug
+                  [0.80, 0.60, 0.70]   # w/o sym
                  ]
-    net_styles = ['-', '-', '-', '-', '--', '-.', ':']
+    net_styles = ['-', '-', '-', '-', '-', '-', '-']
 
     for m in metrics:
         metric_vals = []
@@ -56,7 +57,7 @@ def plot_ablation_architecture():
 
                 # Add to plot
                 x = np.linspace(0, 50, mean.shape[0])
-                ax.plot(x, mean, linewidth=3, color=net_colors[n], linestyle=net_styles[n], label=net_names[n])
+                ax.plot(x, mean, linewidth=LINE_WIDTH, color=net_colors[n], linestyle=net_styles[n], label=net_names[n])
                 #ax.fill_between(x, mean - std, mean + std, interpolate=True, alpha=0.2,
                 #                facecolor=net_colors[n], edgecolor=net_colors[n])
 
@@ -65,13 +66,14 @@ def plot_ablation_architecture():
             #plt.figlegend(handles, labels, loc='upper right', ncol=1,
             #              labelspacing=0.8, fontsize=14, bbox_to_anchor=(0.9, 0.9))
             plt.figlegend(handles, labels, loc='lower right', ncol=1,
-                          labelspacing=0.8, fontsize=14, bbox_to_anchor=(0.9, 0.1))
+                          labelspacing=0.1, fontsize=16, bbox_to_anchor=(0.9, 0.1))
 
-            plt.ylabel(r'Accuracy', fontsize=16)
+            plt.ylabel(r'Accuracy', fontsize=18)
             if m == ADDS_CODE:
-                plt.xlabel(r'ADDS threshold (\% diameter)', fontsize=16)
+                plt.xlabel(r'ADD threshold (\% diameter)', fontsize=18)
             else:
-                plt.xlabel(r'Translation/rotation threshold (cm/degree)', fontsize=16)
+                plt.xlabel(r'Translation/rotation threshold (cm/degree)', fontsize=18)
+            ax.tick_params(axis='both', which='major', labelsize=16)
 
 
 def plot_ablation_hand_input():
@@ -85,23 +87,23 @@ def plot_ablation_hand_input():
     # 10 w/o MCPs, 11 MCPs, 12 MCPs + W
 
     joint_names = ['All',
-                   'TIPs', 'TIPs', 'TIPs + W',
-                   'DIPs', 'DIPs', 'DIPs + W',
-                   'PIPs', 'PIPs', 'PIPs + W',
-                   'MCPs', 'MCPs', 'MCPs + W']
-    joint_colors = [[0., 0., 0.],        # All
-                    [0.91, 0.28, 0.24],  # \TIPs
-                    [0.91, 0.28, 0.24],  # TIPs
-                    [0.91, 0.28, 0.24],  # TIPs + W
-                    [0.40, 0.53, 0.94],  # \DIPs
-                    [0.40, 0.53, 0.94],  # DIPs
-                    [0.40, 0.53, 0.94],  # DIPs + W
-                    [0.98, 0.74, 0.27],  # \PIPs
-                    [0.98, 0.74, 0.27],  # PIPs
-                    [0.98, 0.74, 0.27],  # PIPs + W
-                    [0.38, 0.66, 0.34],  # \MCPs
-                    [0.38, 0.66, 0.34],  # MCPs
-                    [0.38, 0.66, 0.34]   # MCPs + W
+                   'w/o TIPs', 'TIPs', 'TIPs + W',
+                   'w/o DIPs', 'DIPs', 'DIPs + W',
+                   'w/o PIPs', 'PIPs', 'PIPs + W',
+                   'w/o MCPs', 'MCPs', 'MCPs + W']
+    joint_colors = [[0.00, 0.00, 0.00],  # All
+                    [0.90, 0.60, 0.00],  # \TIPs
+                    [0.90, 0.60, 0.00],  # TIPs
+                    [0.90, 0.60, 0.00],  # TIPs + W
+                    [0.00, 0.60, 0.50],  # \DIPs
+                    [0.00, 0.60, 0.50],  # DIPs
+                    [0.00, 0.60, 0.50],  # DIPs + W
+                    [0.35, 0.70, 0.90],  # \PIPs
+                    [0.35, 0.70, 0.90],  # PIPs
+                    [0.35, 0.70, 0.90],  # PIPs + W
+                    [0.80, 0.40, 0.00],  # \MCPs
+                    [0.80, 0.40, 0.00],  # MCPs
+                    [0.80, 0.40, 0.00]   # MCPs + W
                    ]
     joint_styles = ['-', '-', '--', ':', '-', '--', ':', '-', '--', ':', '-', '--', ':']
 
@@ -129,20 +131,22 @@ def plot_ablation_hand_input():
 
                 # Add to plot
                 x = np.linspace(0, 50, mean.shape[0])
-                ax.plot(x, mean, linewidth=3, color=joint_colors[j], linestyle=joint_styles[j], label=joint_names[j])
+                ax.plot(x, mean, linewidth=LINE_WIDTH, color=joint_colors[j], linestyle=joint_styles[j],
+                        label=joint_names[j])
 
             # Add legend and axes labels
             handles, labels = ax.get_legend_handles_labels()
             # plt.figlegend(handles, labels, loc='upper right', ncol=1,
             #              labelspacing=0.8, fontsize=14, bbox_to_anchor=(0.9, 0.9))
             plt.figlegend(handles, labels, loc='lower right', ncol=1,
-                          labelspacing=0.8, fontsize=14, bbox_to_anchor=(0.9, 0.1))
+                          labelspacing=0.1, fontsize=16, bbox_to_anchor=(0.9, 0.1))
 
-            plt.ylabel(r'Accuracy', fontsize=16)
+            plt.ylabel(r'Accuracy', fontsize=18)
             if m == ADDS_CODE:
-                plt.xlabel(r'ADDS threshold (\% diameter)', fontsize=16)
+                plt.xlabel(r'ADD threshold (\% diameter)', fontsize=18)
             else:
-                plt.xlabel(r'Translation/rotation threshold (cm/degree)', fontsize=16)
+                plt.xlabel(r'Translation/rotation threshold (cm/degree)', fontsize=18)
+            ax.tick_params(axis='both', which='major', labelsize=16)
 
 
 if __name__ == '__main__':
