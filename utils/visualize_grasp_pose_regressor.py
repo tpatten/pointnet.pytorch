@@ -30,6 +30,7 @@ joint_sizes = [0.008, 0.006, 0.004, 0.004]
 PASSGREEN = lambda x: '\033[92m' + x + '\033[0m'
 FAILRED = lambda x: '\033[91m' + x + '\033[0m'
 DIAMETER = 0.232280153674483
+BOP_MODEL_PATH = '/home/tpatten/Data/ycbv/models/'
 
 
 def load_files(dataset_path, data_subset):
@@ -46,7 +47,7 @@ def load_files(dataset_path, data_subset):
     return files
 
 
-def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, verbose=False):
+def visualize(object_filename, hand_filename, grasp_pose_filename, models_path, verbose=False):
     # Load the points
     with open(hand_filename, 'rb') as f:
         try:
@@ -67,7 +68,7 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
             invalid_joints[i] = True
 
     # Load the object information
-    with open(meta_filename, 'rb') as f:
+    with open(object_filename, 'rb') as f:
         try:
             pickle_data = pickle.load(f, encoding='latin1')
         except:
@@ -75,13 +76,13 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
 
     # Replace the missing values
     gt_point_set = None
-    if not meta_filename == hand_filename:
-        if verbose:
-            print('Missing values for {} joints'.format(num_invalid_joints))
-        gt_point_set = pickle_data['handJoints3D'].astype(np.float32)
-        for i in range(len(invalid_joints)):
-            if invalid_joints[i]:
-                point_set[i] = gt_point_set[i]
+    #if not object_filename == hand_filename:
+    #    if verbose:
+    #        print('Missing values for {} joints'.format(num_invalid_joints))
+    #    gt_point_set = pickle_data['handJoints3D'].astype(np.float32)
+    #    for i in range(len(invalid_joints)):
+    #        if invalid_joints[i]:
+    #            point_set[i] = gt_point_set[i]
     point_set_copy = np.copy(point_set)
 
     # Center
@@ -100,11 +101,18 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
     obj_rot = pickle_data['objRot']
     obj_trans = pickle_data['objTrans']
     obj_id = pickle_data['objName']
-    obj_cloud_filename = os.path.join(models_path, obj_id, 'points.xyz')
     obj_pcd = o3d.geometry.PointCloud()
-    obj_pcd.points = o3d.utility.Vector3dVector(np.loadtxt(obj_cloud_filename))
+    if models_path == BOP_MODEL_PATH:
+        obj_pcd.points = o3d.utility.Vector3dVector(np.asarray(o3d.read_point_cloud(
+            os.path.join(models_path, obj_id + '.ply')).points) * 0.001)
+    else:
+        obj_pcd.points = o3d.utility.Vector3dVector(np.loadtxt(os.path.join(models_path, obj_id, 'points.xyz')))
     pts = np.asarray(obj_pcd.points)
-    pts = np.matmul(pts, cv2.Rodrigues(obj_rot)[0].T)
+    if obj_rot.shape == (3, 3):
+        pts = np.matmul(pts, obj_rot)
+        #obj_trans[2] *= -1
+    else:
+        pts = np.matmul(pts, cv2.Rodrigues(obj_rot)[0].T)
     pts += obj_trans
     obj_pcd.points = o3d.utility.Vector3dVector(pts)
 
@@ -115,12 +123,13 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
     pred_np = pred.data.cpu().numpy()[0]
 
     # Load the ground truth grasp pose
-    with open(grasp_pose_filename, 'rb') as f:
-        try:
-            pickle_data = pickle.load(f, encoding='latin1')
-        except:
-            pickle_data = pickle.load(f)
-    gripper_transform = pickle_data.reshape(4, 4)
+    if grasp_pose_filename is not None:
+        with open(grasp_pose_filename, 'rb') as f:
+            try:
+                pickle_data = pickle.load(f, encoding='latin1')
+            except:
+                pickle_data = pickle.load(f)
+        gripper_transform = pickle_data.reshape(4, 4)
 
     # Load the gripper cloud
     gripper_pcd = o3d.geometry.PointCloud()
@@ -129,11 +138,12 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
     gripper_pcd_predicted = copy.deepcopy(gripper_pcd)
 
     # Transform with ground truth
-    pts = np.asarray(gripper_pcd.points)
-    pts = np.matmul(pts, np.linalg.inv(gripper_transform[:3, :3]))
-    gripper_trans = gripper_transform[:3, 3]
-    pts += gripper_trans
-    gripper_pcd_gt.points = o3d.utility.Vector3dVector(pts)
+    if grasp_pose_filename is not None:
+        pts = np.asarray(gripper_pcd.points)
+        pts = np.matmul(pts, np.linalg.inv(gripper_transform[:3, :3]))
+        gripper_trans = gripper_transform[:3, 3]
+        pts += gripper_trans
+        gripper_pcd_gt.points = o3d.utility.Vector3dVector(pts)
 
     # Transform with the prediction
     predicted_gripper_transform = error_def.to_transform(pred_np, offset, dist)
@@ -145,12 +155,14 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
     gripper_pcd_predicted.points = o3d.utility.Vector3dVector(pts)
 
     if verbose:
-        print('GROUND TRUTH')
-        print(gripper_transform)
-        euler_gt = tf3d.euler.mat2euler(gripper_transform[:3, :3])
-        print('Translation\n{}\n{}\n{}'.format(gripper_transform[0, 3], gripper_transform[1, 3],
-                                               gripper_transform[2, 3]))
-        print('Rotation\n{}\n{}\n{}'.format(np.degrees(euler_gt[0]), np.degrees(euler_gt[1]), np.degrees(euler_gt[2])))
+        if grasp_pose_filename is not None:
+            print('GROUND TRUTH')
+            print(gripper_transform)
+            euler_gt = tf3d.euler.mat2euler(gripper_transform[:3, :3])
+            print('Translation\n{}\n{}\n{}'.format(gripper_transform[0, 3], gripper_transform[1, 3],
+                                                   gripper_transform[2, 3]))
+            print('Rotation\n{}\n{}\n{}'.format(np.degrees(euler_gt[0]), np.degrees(euler_gt[1]),
+                                                np.degrees(euler_gt[2])))
 
         print('PREDICTION')
         print(pred_np)
@@ -160,35 +172,36 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
         print('Rotation\n{}\n{}\n{}'.format(np.degrees(euler_prediction[0]), np.degrees(euler_prediction[1]),
                                             np.degrees(euler_prediction[2])))
 
-    print('ERROR')
-    print('ADD {:.4f}'.format(error_def.add_error(gripper_transform, predicted_gripper_transform,
-                                                  np.asarray(gripper_pcd.points))))
-    adds_error = error_def.add_symmetric_error(gripper_transform, predicted_gripper_transform,
-                                               np.asarray(gripper_pcd.points))
-    print('ADD Symmetric {:.4f}'.format(adds_error))
-    t_error = error_def.translation_error(gripper_transform, predicted_gripper_transform) * 100
-    print('Translation {:.4f} cm'.format(t_error))
-    r_error = np.degrees(error_def.rotation_error(gripper_transform, predicted_gripper_transform))
-    print('Rotation {:.2f} deg'.format(r_error[0]))
-    print('Rx {:.2f} Ry {:.2f} Rz {:.2f}'.format(r_error[1], r_error[2], r_error[3]))
+    if grasp_pose_filename is not None:
+        print('ERROR')
+        print('ADD {:.4f}'.format(error_def.add_error(gripper_transform, predicted_gripper_transform,
+                                                      np.asarray(gripper_pcd.points))))
+        adds_error = error_def.add_symmetric_error(gripper_transform, predicted_gripper_transform,
+                                                   np.asarray(gripper_pcd.points))
+        print('ADD Symmetric {:.4f}'.format(adds_error))
+        t_error = error_def.translation_error(gripper_transform, predicted_gripper_transform) * 100
+        print('Translation {:.4f} cm'.format(t_error))
+        r_error = np.degrees(error_def.rotation_error(gripper_transform, predicted_gripper_transform))
+        print('Rotation {:.2f} deg'.format(r_error[0]))
+        print('Rx {:.2f} Ry {:.2f} Rz {:.2f}'.format(r_error[1], r_error[2], r_error[3]))
 
-    if adds_error < 0.1 * DIAMETER:
-        print('10%%: %s' % (PASSGREEN('PASS')))
-    else:
-        print('10%%: %s' % (FAILRED('FAIL')))
-    if adds_error < 0.2 * DIAMETER:
-        print('20%%: %s' % (PASSGREEN('PASS')))
-    else:
-        print('20%%: %s' % (FAILRED('FAIL')))
+        if adds_error < 0.1 * DIAMETER:
+            print('10%%: %s' % (PASSGREEN('PASS')))
+        else:
+            print('10%%: %s' % (FAILRED('FAIL')))
+        if adds_error < 0.2 * DIAMETER:
+            print('20%%: %s' % (PASSGREEN('PASS')))
+        else:
+            print('20%%: %s' % (FAILRED('FAIL')))
 
-    if t_error < 5.0 and np.abs(r_error[0]) < 5.0 and np.abs(r_error[1]) < 5.0 and np.abs(r_error[2]) < 5.0:
-        print('5cm/5deg: %s' % (PASSGREEN('PASS')))
-    else:
-        print('5cm/5deg: %s' % (FAILRED('FAIL')))
-    if t_error < 5.0 and np.abs(r_error[0]) < 15.0 and np.abs(r_error[1]) < 15.0 and np.abs(r_error[2]) < 15.0:
-        print('5cm/15deg: %s' % (PASSGREEN('PASS')))
-    else:
-        print('5cm/15deg: %s' % (FAILRED('FAIL')))
+        if t_error < 5.0 and np.abs(r_error[0]) < 5.0 and np.abs(r_error[1]) < 5.0 and np.abs(r_error[2]) < 5.0:
+            print('5cm/5deg: %s' % (PASSGREEN('PASS')))
+        else:
+            print('5cm/5deg: %s' % (FAILRED('FAIL')))
+        if t_error < 5.0 and np.abs(r_error[0]) < 15.0 and np.abs(r_error[1]) < 15.0 and np.abs(r_error[2]) < 15.0:
+            print('5cm/15deg: %s' % (PASSGREEN('PASS')))
+        else:
+            print('5cm/15deg: %s' % (FAILRED('FAIL')))
 
     # Visualize
     vis = o3d.visualization.Visualizer()
@@ -199,8 +212,9 @@ def visualize(meta_filename, hand_filename, grasp_pose_filename, models_path, ve
     # gripper_pcd.paint_uniform_color([0.4, 0.4, 0.4])
     # vis.add_geometry(gripper_pcd)
     # ground truth
-    gripper_pcd_gt.paint_uniform_color([0., 1., 0.])
-    vis.add_geometry(gripper_pcd_gt)
+    if grasp_pose_filename is not None:
+        gripper_pcd_gt.paint_uniform_color([0., 1., 0.])
+        vis.add_geometry(gripper_pcd_gt)
     # predicted
     gripper_pcd_predicted.paint_uniform_color([0., 0., 1.])
     vis.add_geometry(gripper_pcd_predicted)
@@ -246,9 +260,12 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, default='', help='model path')
     parser.add_argument('--dataset', type=str, required=True, help="dataset path")
     parser.add_argument('--est', action='store_true', help="use the estimated hand joints")
+    parser.add_argument('--p2p', action='store_true', help="use the Pix2Pose estimation of the object pose")
 
     opt = parser.parse_args()
     opt.models_path = os.path.join(opt.dataset, 'models')
+    if opt.p2p:
+        opt.models_path = BOP_MODEL_PATH
     opt.verbose = True
     print(opt)
 
@@ -276,21 +293,32 @@ if __name__ == '__main__':
     regressor = regressor.eval()
 
     # Get the files
-    filelist = load_files(opt.dataset, opt.data_subset)
+    if opt.p2p:
+        filelist = os.listdir(os.path.join(opt.dataset, 'rgb'))
+        filelist.sort()
+    else:
+        filelist = load_files(opt.dataset, opt.data_subset)
 
     # For each file
     for file in filelist:
-        subject, seq = file.split('/')
-        meta_filename = os.path.join(opt.dataset, 'train', subject, 'meta', seq + '.pkl')
-        if opt.est:
-            hand_filename = os.path.join(opt.dataset, 'train', subject, 'hand_tracker', seq + '.pkl')
+        if opt.p2p:
+            seq = os.path.splitext(file)[0]
+            object_filename = os.path.join(opt.dataset, 'object_pose', seq + '.pkl')
+            hand_filename = os.path.join(opt.dataset, 'hand_tracker', seq + '.pkl')
+            grasp_pose_filename = None
         else:
-            hand_filename = os.path.join(opt.dataset, 'train', subject, 'meta', seq + '.pkl')
-        if os.path.exists(hand_filename):
+            subject, seq = file.split('/')
+            object_filename = os.path.join(opt.dataset, 'train', subject, 'meta', seq + '.pkl')
+            if opt.est:
+                hand_filename = os.path.join(opt.dataset, 'train', subject, 'hand_tracker', seq + '.pkl')
+            else:
+                hand_filename = os.path.join(opt.dataset, 'train', subject, 'meta', seq + '.pkl')
             grasp_pose_filename = os.path.join(opt.dataset, 'train', subject, 'meta', 'grasp_bl_' + seq + '.pkl')
+
+        if os.path.exists(object_filename) and os.path.exists(hand_filename):
             print('\n--- Processing file {} ---'.format(hand_filename))
             # Visualize
-            visualize(meta_filename, hand_filename, grasp_pose_filename, opt.models_path, opt.verbose)
+            visualize(object_filename, hand_filename, grasp_pose_filename, opt.models_path, opt.verbose)
             # sys.exit(0)
         else:
             print('No hand estimate for {}'.format(hand_filename))

@@ -47,6 +47,10 @@ https://stackoverflow.com/questions/33906111/how-do-i-estimate-positions-of-two-
 
 
 HAND TRACKING
+nvidia-docker run -it --network=host -e DISPLAY=$DISPLAY -v /usr/lib/nvidia-418:/usr/lib/nvidia-418 -v /usr/lib32/nvidia-418:/usr/lib32/nvidia-418 -v /tmp/.X11-unix/:/tmp/.X11-unix -v /home/tpatten:/home/tpatten -v /home/tpatten/v4rtemp:/v4rtemp --privileged jamadi/handtracking:latest bash
 export LD_LIBRARY_PATH=/home/tpatten/Code/hand-tracking/lib:$LD_LIBRARY_PATH
 
+
 nvidia-docker run -it -v /home/tpatten/Code/Mask_RCNN:/Mask_RCNN -v /home/tpatten/Data:/bop pix2pose:latest bash
+export PYTHONPATH=/usr/local/lib/python3.5/dist-packages
+source /opt/ros/kinetic/setup.bash

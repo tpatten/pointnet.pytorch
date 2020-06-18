@@ -18,18 +18,26 @@ LINE_WIDTH = 2
 
 def plot_ablation_architecture():
     targets = ['abf', 'bb', 'gpmf', 'gsf', 'mdf', 'shsu']
-    metrics = [ADDS_CODE, TR_CODE, TRXYZ_CODE]
-    nets = [[0, 1, 3], [3, 2, 4, 5, 6]]
+    metrics = [ADDS_CODE]
+    nets = [[0, 1, 3, 2], [3, 4, 5, 6]]
 
     net_names = ['baseline', 'baseline (no pool)', 'split heads', 'sorted + MLP', 'w/o dropout', 'w/o aug', 'w/o sym']
+    #net_colors = [[0.00, 0.00, 0.00],  # PointNet
+    #              [0.90, 0.60, 0.00],  # PointNet No Pool
+    #              [0.00, 0.60, 0.50],  # PointNet Split
+    #              [0.35, 0.70, 0.90],  # PointNet Flat
+    #              [0.95, 0.90, 0.25],  # w/o dropout
+    #              [0.80, 0.40, 0.00],  # w/o aug
+    #              [0.80, 0.60, 0.70]   # w/o sym
+    #             ]
     net_colors = [[0.00, 0.00, 0.00],  # PointNet
-                  [0.90, 0.60, 0.00],  # PointNet No Pool
-                  [0.00, 0.60, 0.50],  # PointNet Split
+                  [0.95, 0.45, 0.00],  # PointNet No Pool
+                  [0.00, 0.70, 0.40],  # PointNet Split
                   [0.35, 0.70, 0.90],  # PointNet Flat
-                  [0.95, 0.90, 0.25],  # w/o dropout
-                  [0.80, 0.40, 0.00],  # w/o aug
-                  [0.80, 0.60, 0.70]   # w/o sym
-                 ]
+                  [0.91, 0.85, 0.00],  # w/o dropout
+                  [0.95, 0.20, 0.00],  # w/o aug
+                  [0.90, 0.20, 0.90]  # w/o sym
+                  ]
     net_styles = ['-', '-', '-', '-', '-', '-', '-']
 
     fig_count = 0
@@ -55,26 +63,36 @@ def plot_ablation_architecture():
                 # Get the mean
                 mean = np.mean(net_vals, axis=1)
                 std = np.std(net_vals, axis=1)
+                #print(net_names[n])
+                #for m in mean:
+                #    print(m)
 
                 # Add to plot
                 x = np.linspace(0, 50, mean.shape[0])
-                ax.plot(x, mean, linewidth=LINE_WIDTH, color=net_colors[n], linestyle=net_styles[n], label=net_names[n])
+                if n == 3:
+                    ax.plot(x, mean, linewidth=LINE_WIDTH, color=net_colors[n], linestyle=net_styles[n],
+                            label=net_names[n], zorder=10)
+                else:
+                    ax.plot(x, mean, linewidth=LINE_WIDTH, color=net_colors[n], linestyle=net_styles[n],
+                            label=net_names[n])
                 #ax.fill_between(x, mean - std, mean + std, interpolate=True, alpha=0.2,
                 #                facecolor=net_colors[n], edgecolor=net_colors[n])
 
             # Add legend and axes labels
             handles, labels = ax.get_legend_handles_labels()
             plt.figlegend(handles, labels, loc='lower right', ncol=1,
-                          labelspacing=0.1, fontsize=16, bbox_to_anchor=(0.9, 0.1))
+                          labelspacing=0.1, fontsize=18, bbox_to_anchor=(0.9, 0.1))
 
-            plt.ylabel(r'Accuracy', fontsize=18)
+            plt.ylabel(r'Accuracy', fontsize=20)
             plt.yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], ('0.0', '0.2', '0.4', '0.6', '0.8', '1.0'))
             if m == ADDS_CODE:
-                plt.xlabel(r'ADD threshold', fontsize=18)
-                plt.xticks([0, 10, 20, 30, 40, 50], ('0\%', '10\%', '20\%', '30\%', '40\%', '50\%'))
+                plt.xlabel(r'ADD threshold', fontsize=20)
+                #plt.xticks([0, 10, 20, 30, 40, 50], ('0\%', '10\%', '20\%', '30\%', '40\%', '50\%'))
+                plt.xlim(0, 40)
+                plt.xticks([0, 10, 20, 30, 40], ('0\%', '10\%', '20\%', '30\%', '40\%'))
             else:
-                plt.xlabel(r'Translation/rotation threshold (cm/degree)', fontsize=18)
-            ax.tick_params(axis='both', which='major', labelsize=16)
+                plt.xlabel(r'Translation/rotation threshold (cm/degree)', fontsize=20)
+            ax.tick_params(axis='both', which='major', labelsize=18)
             figure_name = '/home/tpatten/Data/ICAS2020/Experiments/figure' + str(fig_count) + '.pdf'
             plt.savefig(figure_name)
             os.system('pdfcrop ' + figure_name)
@@ -97,20 +115,34 @@ def plot_ablation_hand_input():
                    'w/o DIPs', 'DIPs', 'DIPs + W',
                    'w/o PIPs', 'PIPs', 'PIPs + W',
                    'w/o MCPs', 'MCPs', 'MCPs + W']
+    #joint_colors = [[0.00, 0.00, 0.00],  # All
+    #                [0.90, 0.60, 0.00],  # \TIPs
+    #                [0.90, 0.60, 0.00],  # TIPs
+    #                [0.90, 0.60, 0.00],  # TIPs + W
+    #                [0.35, 0.70, 0.90],  # \DIPs
+    #                [0.35, 0.70, 0.90],  # DIPs
+    #                [0.35, 0.70, 0.90],  # DIPs + W
+    #                [0.00, 0.60, 0.50],  # \PIPs
+    #                [0.00, 0.60, 0.50],  # PIPs
+    #                [0.00, 0.60, 0.50],  # PIPs + W
+    #                [0.95, 0.90, 0.25],  # \MCPs
+    #                [0.95, 0.90, 0.25],  # MCPs
+    #                [0.95, 0.90, 0.25]   # MCPs + W
+    #               ]
     joint_colors = [[0.00, 0.00, 0.00],  # All
-                    [0.90, 0.60, 0.00],  # \TIPs
-                    [0.90, 0.60, 0.00],  # TIPs
-                    [0.90, 0.60, 0.00],  # TIPs + W
-                    [0.00, 0.60, 0.50],  # \DIPs
-                    [0.00, 0.60, 0.50],  # DIPs
-                    [0.00, 0.60, 0.50],  # DIPs + W
-                    [0.35, 0.70, 0.90],  # \PIPs
-                    [0.35, 0.70, 0.90],  # PIPs
-                    [0.35, 0.70, 0.90],  # PIPs + W
-                    [0.80, 0.40, 0.00],  # \MCPs
-                    [0.80, 0.40, 0.00],  # MCPs
-                    [0.80, 0.40, 0.00]   # MCPs + W
-                   ]
+                    [0.95, 0.45, 0.00],  # \TIPs
+                    [0.95, 0.45, 0.00],  # TIPs
+                    [0.95, 0.45, 0.00],  # TIPs + W
+                    [0.35, 0.70, 0.90],  # \DIPs
+                    [0.35, 0.70, 0.90],  # DIPs
+                    [0.35, 0.70, 0.90],  # DIPs + W
+                    [0.00, 0.70, 0.40],  # \PIPs
+                    [0.00, 0.70, 0.40],  # PIPs
+                    [0.00, 0.70, 0.40],  # PIPs + W
+                    [0.91, 0.85, 0.00],  # \MCPs
+                    [0.91, 0.85, 0.00],  # MCPs
+                    [0.91, 0.85, 0.00]  # MCPs + W
+                    ]
     joint_styles = ['-', '-', '--', ':', '-', '--', ':', '-', '--', ':', '-', '--', ':']
 
     fig_count = 0
@@ -146,16 +178,18 @@ def plot_ablation_hand_input():
             # plt.figlegend(handles, labels, loc='upper right', ncol=1,
             #              labelspacing=0.8, fontsize=14, bbox_to_anchor=(0.9, 0.9))
             plt.figlegend(handles, labels, loc='lower right', ncol=1,
-                          labelspacing=0.1, fontsize=16, bbox_to_anchor=(0.9, 0.1))
+                          labelspacing=0.1, fontsize=18, bbox_to_anchor=(0.9, 0.1))
 
-            plt.ylabel(r'Accuracy', fontsize=18)
+            plt.ylabel(r'Accuracy', fontsize=20)
             plt.yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], ('0.0', '0.2', '0.4', '0.6', '0.8', '1.0'))
             if m == ADDS_CODE:
-                plt.xlabel(r'ADD threshold', fontsize=18)
-                plt.xticks([0, 10, 20, 30, 40, 50], ('0\%', '10\%', '20\%', '30\%', '40\%', '50\%'))
+                plt.xlabel(r'ADD threshold', fontsize=20)
+                # plt.xticks([0, 10, 20, 30, 40, 50], ('0\%', '10\%', '20\%', '30\%', '40\%', '50\%'))
+                plt.xlim(0, 40)
+                plt.xticks([0, 10, 20, 30, 40], ('0\%', '10\%', '20\%', '30\%', '40\%'))
             else:
-                plt.xlabel(r'Translation/rotation threshold (cm/degree)', fontsize=18)
-            ax.tick_params(axis='both', which='major', labelsize=16)
+                plt.xlabel(r'Translation/rotation threshold (cm/degree)', fontsize=20)
+            ax.tick_params(axis='both', which='major', labelsize=18)
             figure_name = '/home/tpatten/Data/ICAS2020/Experiments/figure' + str(fig_count) + '.pdf'
             plt.savefig(figure_name)
             os.system('pdfcrop ' + figure_name)

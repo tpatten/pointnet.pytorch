@@ -38,10 +38,17 @@ class GraspLearner:
         # Get the arguments
         self.dataset_directory = args.dataset
         self.target_name = args.target
-        self.hand_directory = os.path.join(self.dataset_directory, self.target_name, 'hand_tracker')
-        self.object_directory = os.path.join(self.dataset_directory, self.target_name, 'meta')
-        self.rgb_directory = os.path.join(self.dataset_directory, self.target_name, 'rgb')
-        self.depth_directory = os.path.join(self.dataset_directory, self.target_name, 'depth')
+        self.pix2pose = args.pix2pose
+        if self.pix2pose:
+            self.hand_directory = os.path.join(self.dataset_directory, 'hand_tracker')
+            self.object_directory = os.path.join(self.dataset_directory, 'object_pose')
+            self.rgb_directory = os.path.join(self.dataset_directory, 'rgb')
+            self.depth_directory = os.path.join(self.dataset_directory, 'depth')
+        else:
+            self.hand_directory = os.path.join(self.dataset_directory, self.target_name, 'hand_tracker')
+            self.object_directory = os.path.join(self.dataset_directory, self.target_name, 'meta')
+            self.rgb_directory = os.path.join(self.dataset_directory, self.target_name, 'rgb')
+            self.depth_directory = os.path.join(self.dataset_directory, self.target_name, 'depth')
         self.ground_truth_prefix = args.ground_truth_prefix
         self.start_frame = args.start_frame
 
@@ -51,7 +58,7 @@ class GraspLearner:
         dropout_p = f_args['dropout_p']
         average_pool = f_args['average_pool']
         arch = f_args['arch']
-        joint_set = f_args['joint_set']
+        #joint_set = f_args['joint_set']
 
         manualSeed = random.randint(1, 10000)  # fix seed
         print("Random Seed: ", manualSeed)
@@ -111,6 +118,8 @@ class GraspLearner:
                             break
                         else:
                             pose_history.append((hand_pts, hand_score, object_pose, frame_id))
+                    #if self.pix2pose:
+                    #    self.visualize_scene(frame_id, object_pose, hand_pts)
             else:
                 if not os.path.exists(hand_pose_filename):
                     print('{} does not exit'.format(hand_pose_filename))
@@ -143,7 +152,10 @@ class GraspLearner:
 
         # Estimate the final grasp using the approach vector
         estimated_tf, hand_joints = self.estimate_final_grasp_pose(
-            frame_valid_idx_tf, pose_history[frame_valid_idx][-1], pose_history[frame_end_idx][-1])
+            frame_valid_idx_tf, pose_history[frame_valid_idx][0], pose_history[frame_valid_idx][-1],
+            pose_history[frame_end_idx][-1])
+        #if self.pix2pose:
+        #    hand_joints = (pose_history[frame_valid_idx][0], pose_history[frame_valid_idx][0])
 
         # Transform to the object coordinate system
         object_frame_tf = np.matmul(np.linalg.inv(pose_history[frame_end_idx][2]), estimated_tf)
@@ -172,12 +184,21 @@ class GraspLearner:
         # Get the object transformation matrix
         object_pkl = load_pickle_data(object_pose_filename)
         obj_tf_mat = np.eye(4)
-        obj_tf_mat[:3, :3] = cv2.Rodrigues(object_pkl['objRot'])[0].T
-        obj_tf_mat[:3, 3] = object_pkl['objTrans']
+        rot = object_pkl['objRot']
+        trans = object_pkl['objTrans']
+        if rot.shape == (3, 3):
+            obj_tf_mat[:3, :3] = rot
+        else:
+            obj_tf_mat[:3, :3] = cv2.Rodrigues(rot)[0].T
+        obj_tf_mat[:3, 3] = trans
 
         if self.obj_cloud_base is None:
-            self.obj_cloud_base = np.loadtxt(
-                os.path.join('/home/tpatten/Data/Hands/HO3D/models', object_pkl['objName'], 'points.xyz'))
+            if self.pix2pose:
+                self.obj_cloud_base = np.asarray(o3d.read_point_cloud(
+                    os.path.join('/home/tpatten/Data/ycbv/models', object_pkl['objName'] + '.ply')).points) * 0.001
+            else:
+                self.obj_cloud_base = np.loadtxt(
+                    os.path.join('/home/tpatten/Data/Hands/HO3D/models', object_pkl['objName'], 'points.xyz'))
 
         return hand_pts, hand_score, obj_tf_mat
 
@@ -205,19 +226,26 @@ class GraspLearner:
 
         return predicted_gripper_transform
 
-    def estimate_final_grasp_pose(self, grasp_pose, frame_valid, frame_end):
+    def estimate_final_grasp_pose(self, grasp_pose, hand_pts, frame_valid, frame_end):
         rgb_val, depth_val = get_images(os.path.join(self.rgb_directory, str(frame_valid).zfill(4) + '.png'),
-                                        os.path.join(self.depth_directory, str(frame_valid).zfill(4) + '.png'))
+                                        os.path.join(self.depth_directory, str(frame_valid).zfill(4) + '.png'),
+                                        self.pix2pose)
         pts_val = self.hand_estimator.process(rgb_val, depth_val)
 
         rgb_end, depth_end = get_images(os.path.join(self.rgb_directory, str(frame_end).zfill(4) + '.png'),
-                                        os.path.join(self.depth_directory, str(frame_end).zfill(4) + '.png'))
+                                        os.path.join(self.depth_directory, str(frame_end).zfill(4) + '.png'),
+                                        self.pix2pose)
         pts_end = self.hand_estimator.process(rgb_end, depth_end)
 
-        final_grasp_pose = np.copy(grasp_pose)
-        final_grasp_pose[:3, 3] += self.estimate_approach_vector(pts_val, pts_end)
+        approach_vec = self.estimate_approach_vector(pts_val, pts_end)
 
-        return final_grasp_pose, (pts_val, pts_end)
+        final_grasp_pose = np.copy(grasp_pose)
+        final_grasp_pose[:3, 3] += approach_vec
+
+        final_hand_pts = np.copy(hand_pts)
+        final_hand_pts += approach_vec
+
+        return final_grasp_pose, (hand_pts, final_hand_pts)
 
     @staticmethod
     def estimate_approach_vector(pts_val, pts_end):
@@ -276,9 +304,10 @@ class GraspLearner:
         gripper_pcd_estimated.transform(estimated_tf)
 
         # Ground truth grasp
-        gripper_pcd_gt = o3d.geometry.PointCloud()
-        gripper_pcd_gt.points = o3d.utility.Vector3dVector(self.gripper_cloud_base)
-        gripper_pcd_gt.transform(ground_truth_tf)
+        if ground_truth_tf is not None:
+            gripper_pcd_gt = o3d.geometry.PointCloud()
+            gripper_pcd_gt.points = o3d.utility.Vector3dVector(self.gripper_cloud_base)
+            gripper_pcd_gt.transform(ground_truth_tf)
 
         # Visualize
         vis = o3d.visualization.Visualizer()
@@ -292,19 +321,19 @@ class GraspLearner:
         vis.add_geometry(obj_pcd)
 
         # Final frame grasp pose
-        gripper_pcd_end.paint_uniform_color([0., 0., 1.])
-        vis.add_geometry(gripper_pcd_end)
+        #gripper_pcd_end.paint_uniform_color([0., 0., 1.])
+        #vis.add_geometry(gripper_pcd_end)
 
         # Latest valid frame grasp pose
         gripper_pcd_valid.paint_uniform_color([0., 1., 1.])
         vis.add_geometry(gripper_pcd_valid)
 
         # Final estimated grasp pose
-        gripper_pcd_estimated.paint_uniform_color([1., 0., 0.])
-        vis.add_geometry(gripper_pcd_estimated)
+        #gripper_pcd_estimated.paint_uniform_color([1., 0., 0.])
+        #vis.add_geometry(gripper_pcd_estimated)
 
         # Ground truth grasp pose
-        if gripper_pcd_gt is not None:
+        if ground_truth_tf is not None:
             gripper_pcd_gt.paint_uniform_color([0., 1., 0.])
             vis.add_geometry(gripper_pcd_gt)
 
@@ -332,6 +361,7 @@ class GraspLearner:
                         mm.transform(tt)
                         vis.add_geometry(mm)
 
+        #'''
         # Visualize the grasp in the object's frame
         obj_pcd_origin = o3d.geometry.PointCloud()
         obj_pcd_origin.points = o3d.utility.Vector3dVector(self.obj_cloud_base)
@@ -343,7 +373,9 @@ class GraspLearner:
         object_frame_grasp_pcd.transform(object_frame_tf)
         object_frame_grasp_pcd.paint_uniform_color([1., 0., 0.])
         vis.add_geometry(object_frame_grasp_pcd)
+        #'''
 
+        #'''
         # Visualize some random grasps
         for i in range(5):
             # Random object pose
@@ -378,6 +410,69 @@ class GraspLearner:
             elif i == 4:
                 gripper_pcd_rand.paint_uniform_color([0.7, 0.3, 0.7])
             vis.add_geometry(gripper_pcd_rand)
+        #'''
+
+        # End
+        vis.run()
+        vis.destroy_window()
+
+    def visualize_scene(self, frame_id, object_transform, hand_joints=None):
+        # Get the object point cloud
+        obj_pcd = o3d.geometry.PointCloud()
+        obj_pcd.points = o3d.utility.Vector3dVector(self.obj_cloud_base)
+        obj_pcd.transform(object_transform)
+        #coord_change_mat = np.array([[1., 0., 0.], [0, -1., 0.], [0., 0., -1.]], dtype=np.float32)
+        #obj_pcd.points = o3d.utility.Vector3dVector(np.asarray(obj_pcd.points).dot(coord_change_mat.T))
+
+        # Visualize
+        vis = o3d.visualization.Visualizer()
+        vis.create_window()
+
+        # Coordinate frame
+        vis.add_geometry(o3d.create_mesh_coordinate_frame(size=0.05))
+
+        # Object cloud
+        obj_pcd.paint_uniform_color([0.5, 0.5, 0.5])
+        vis.add_geometry(obj_pcd)
+
+        # Hand joints
+        if hand_joints is not None:
+            for i in range(len(all_indices)):
+                for j in range(len(all_indices[i])):
+                    if not np.isnan(hand_joints[all_indices[i][j]][0]):
+                        mm = o3d.create_mesh_sphere(radius=joint_sizes[j])
+                        mm.compute_vertex_normals()
+                        mm.paint_uniform_color(finger_colors[i])
+                        trans3d = hand_joints[all_indices[i][j]]
+                        tt = np.eye(4)
+                        tt[0:3, 3] = trans3d
+                        mm.transform(tt)
+                        vis.add_geometry(mm)
+
+        ux = 315.3074696331638
+        uy = 233.0483557773859
+        fx = 538.391033533567
+        fy = 538.085452058436
+        i_fx = 1 / fx
+        i_fy = 1 / fy
+        _, depth_image = get_images(os.path.join(self.rgb_directory, str(frame_id).zfill(4) + '.png'),
+                                    os.path.join(self.depth_directory, str(frame_id).zfill(4) + '.png'),
+                                    self.pix2pose)
+        points_3D = np.zeros((depth_image.shape[0] * depth_image.shape[1], 3))
+        p_count = 0
+        for u in range(depth_image.shape[0]):
+            for v in range(depth_image.shape[1]):
+                points_3D[p_count, 2] = depth_image[u, v]
+                points_3D[p_count, 1] = (u - ux) * points_3D[p_count, 2] * i_fx
+                points_3D[p_count, 0] = (v - uy) * points_3D[p_count, 2] * i_fy
+                p_count += 1
+        #coord_change_mat = np.array([[1., 0., 0.], [0, -1., 0.], [0., 0., -1.]], dtype=np.float32)
+        #points_3D = points_3D.dot(coord_change_mat.T)
+
+        scene_pcd = o3d.geometry.PointCloud()
+        scene_pcd.points = o3d.utility.Vector3dVector(points_3D)
+        scene_pcd.paint_uniform_color([0.5, 0.5, 0.9])
+        vis.add_geometry(scene_pcd)
 
         # End
         vis.run()
@@ -388,6 +483,7 @@ class HandPoseEstimator:
     def __init__(self, args):
         self.proto_file = args.proto_file
         self.weights_file = args.weights_file
+        self.pix2pose = args.pix2pose
         self.width = 640
         self.height = 480
         self.net = cv2.dnn.readNetFromCaffe(self.proto_file, self.weights_file)
@@ -411,8 +507,9 @@ class HandPoseEstimator:
         # Get the 3D coordinates
         points = self.get_keypoints(pred)
         points3D = self.get_world_coordinates(points, depth_image)
-        coord_change_mat = np.array([[1., 0., 0.], [0, -1., 0.], [0., 0., -1.]], dtype=np.float32)
-        points3D = points3D.dot(coord_change_mat.T)
+        if not self.pix2pose:
+            coord_change_mat = np.array([[1., 0., 0.], [0, -1., 0.], [0., 0., -1.]], dtype=np.float32)
+            points3D = points3D.dot(coord_change_mat.T)
         points3D = to_iccv_format(points3D)
 
         return points3D
@@ -437,14 +534,19 @@ class HandPoseEstimator:
 
         return points
 
-    @staticmethod
-    def get_world_coordinates(points, depth_image):
+    def get_world_coordinates(self, points, depth_image):
         points_3D = np.zeros((len(points), 3))
 
-        ux = 312.42
-        uy = 241.42
-        fx = 617.343
-        fy = 617.343
+        if self.pix2pose:
+            ux = 315.3074696331638
+            uy = 233.0483557773859
+            fx = 538.391033533567
+            fy = 538.085452058436
+        else:
+            ux = 312.42
+            uy = 241.42
+            fx = 617.343
+            fy = 617.343
         i_fx = 1 / fx
         i_fy = 1 / fy
 
@@ -468,11 +570,15 @@ def load_pickle_data(f_name):
     return pickle_data
 
 
-def get_images(rgb_filename, dep_filename):
+def get_images(rgb_filename, dep_filename, ros_image=False):
     rgb_image = cv2.imread(rgb_filename)
-    dep_image = cv2.imread(dep_filename)
-    depth_scale = 0.00012498664727900177
-    dep_image = dep_image[:, :, 2] + dep_image[:, :, 1] * 256
+    if ros_image:
+        dep_image = cv2.imread(dep_filename, cv2.CV_16UC1).astype(np.int16)
+        depth_scale = 0.001
+    else:
+        dep_image = cv2.imread(dep_filename)
+        depth_scale = 0.00012498664727900177
+        dep_image = dep_image[:, :, 2] + dep_image[:, :, 1] * 256
     dep_image = dep_image * depth_scale
 
     return rgb_image, dep_image
@@ -522,16 +628,27 @@ if __name__ == '__main__':
     #                    help="path to the directory that stores the object model")
 
     opt = parser.parse_args()
-    opt.target = 'ABF10'
-    opt.start_frame = 0
     opt.pointnet_model = '/home/tpatten/Data/ICAS2020/Models/XABF_batch64_nEpoch85_regLoss_dropout0-3_augmentation_splitLoss_symmetry_lr0-01_ls20_lg0-5_arch17_newSplit_84.pth'
-    opt.dataset = '/home/tpatten/Data/Hands/HO3D/train'
-    opt.object_model = ''  # '/home/tpatten/Data/Hands/HO3D/models/021_bleach_cleanser/'
-    opt.ground_truth_prefix = 'meta/grasp_bl_'
+    opt.object_model = ''
     opt.proto_file = '/home/tpatten/Code/hand-tracking/caffe_models/pose_deploy.prototxt'
     opt.weights_file = '/home/tpatten/Code/hand-tracking/caffe_models/pose_iter_102000.caffemodel'
     opt.verbose = True
+    '''
+    opt.target = 'ABF10'
+    opt.start_frame = 0
+    opt.dataset = '/home/tpatten/Data/Hands/HO3D/train'
+    opt.ground_truth_prefix = 'meta/grasp_bl_'
     opt.alternate_start = False
+    opt.pix2pose = False
+    '''
+    #'''
+    opt.target = ''
+    opt.ground_truth_prefix = ''
+    opt.start_frame = 0
+    opt.dataset = '/home/tpatten/Data/ICAS2020/Rosbags/005_tomato_soup_can/2020-06-16-11-46-35'
+    opt.alternate_start = False
+    opt.pix2pose = True
+    #'''
 
     if opt.target == 'BB10':
         opt.start_frame = 502

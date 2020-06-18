@@ -157,12 +157,16 @@ def plot_errors(h_errors, g_errors, target=''):
             x_vals.extend(h_errors[i][2])
             y_vals.extend(g_errors[i][2])
 
-    fig = plt.figure(figsize=(8, 5))
-    ax = fig.add_subplot(1, 1, 1)
-    ax.scatter(x_vals, list(np.asarray(y_vals) * 100))
-    ax.set_title(target)
-    ax.set_xlabel('Hand mean joint position error (cm)')
-    ax.set_ylabel('Grasp ADD-S error (cm)')
+    #fig = plt.figure(figsize=(8, 5))
+    fig = plt.figure(figsize=(8, 6), dpi=100, facecolor='w', edgecolor='k')
+    ax = fig.add_subplot(111)
+    ax.scatter(x_vals, list(np.asarray(y_vals) * 100), c=[0.35, 0.70, 0.90], alpha=0.5)
+    # ax.set_title(target)
+    plt.xlabel(r'Hand mean joint position error (cm)', fontsize=18)
+    plt.yticks([0, 10, 20, 30, 40, 50], ('0', '10', '20', '30', '40', '50'))
+    plt.xticks([0, 10, 20, 30, 40, 50], ('0', '10', '20', '30', '40', '50'))
+    plt.ylabel(r'Grasp ADD error (cm)', fontsize=18)
+    ax.tick_params(axis='both', which='major', labelsize=16)
 
     plt.show()
 
@@ -177,13 +181,18 @@ if __name__ == '__main__':
     f_args = parse_model_filename(os.path.basename(opt.model))
     print(opt)
 
+    plt.rc('text', usetex=True)
+    plt.rc('font', family='serif')
+
     opt.manualSeed = random.randint(1, 10000)  # fix seed
     print("Random Seed: ", opt.manualSeed)
     random.seed(opt.manualSeed)
     torch.manual_seed(opt.manualSeed)
 
     # Load the network
+    print(f_args)
     regressor = load_regression_model(f_args['arch'], 9, f_args['dropout_p'], f_args['average_pool'], model=opt.model)
+    regressor.cuda()
     regressor = regressor.eval()
 
     # Evaluate
