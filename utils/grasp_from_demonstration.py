@@ -16,7 +16,7 @@ import copy
 import cv2
 import error_def
 
-OBJECT_TRANSLATION_THRESHOLD = 0.01
+OBJECT_TRANSLATION_THRESHOLD = 0.1
 HAND_VALID_THRESHOLD = 76.
 NUM_POINTS = 21
 THRESHOLD = 0.5
@@ -39,6 +39,7 @@ class GraspLearner:
         self.dataset_directory = args.dataset
         self.target_name = args.target
         self.pix2pose = args.pix2pose
+        self.hand_offset = args.hand_offset
         if self.pix2pose:
             self.hand_directory = os.path.join(self.dataset_directory, 'hand_tracker')
             self.object_directory = os.path.join(self.dataset_directory, 'object_pose')
@@ -51,6 +52,12 @@ class GraspLearner:
             self.depth_directory = os.path.join(self.dataset_directory, self.target_name, 'depth')
         self.ground_truth_prefix = args.ground_truth_prefix
         self.start_frame = args.start_frame
+        self.save = args.save
+        self.combine_grasp_files = args.combine_grasp_files
+
+        if self.combine_grasp_files:
+            self.combine_grasps()
+            return
 
         # Load the regression model
         f_args = parse_model_filename(os.path.basename(args.pointnet_model))
@@ -99,6 +106,10 @@ class GraspLearner:
             hand_pose_filename = os.path.join(self.hand_directory, frame_name + '.pkl')
             object_pose_filename = os.path.join(self.object_directory, frame_name + '.pkl')
 
+            if len(pose_history) > 0 and not os.path.exists(object_pose_filename):
+                print('No pose available, object is occluded and grasp can be computed from previous frame')
+                break
+
             # If both the hand and object are valid
             if os.path.exists(hand_pose_filename) and os.path.exists(object_pose_filename):
                 print('-- {}'.format(hand_pose_filename))
@@ -114,7 +125,9 @@ class GraspLearner:
                     # Otherwise, get the difference in pose of the object in this frame compared to the first frame
                     else:
                         translation_delta = np.linalg.norm(pose_history[0][2][:3, 3] - object_pose[:3, 3])
+                        print('{}: {}'.format(frame_id, translation_delta))
                         if translation_delta > OBJECT_TRANSLATION_THRESHOLD:
+                            print('Detected object movement {} at frame {}'.format(translation_delta, frame_id))
                             break
                         else:
                             pose_history.append((hand_pts, hand_score, object_pose, frame_id))
@@ -141,6 +154,7 @@ class GraspLearner:
         frame_end_idx = len(pose_history) - 1
         frame_valid_idx = frame_end_idx
         for i, e in reversed(list(enumerate(pose_history))):
+            print(e[1])
             if e[1] < HAND_VALID_THRESHOLD:
                 frame_valid_idx = i
                 break
@@ -170,6 +184,10 @@ class GraspLearner:
         else:
             ground_truth_tf = None
 
+        # Save
+        if self.save:
+            self.save_to_file(object_frame_tf)
+
         # Visualize the results
         self.visualize_learned_grasp(
             (frame_valid_idx_tf, frame_end_idx_tf, estimated_tf, object_frame_tf, ground_truth_tf),
@@ -179,6 +197,7 @@ class GraspLearner:
         # Get the joints of the hand
         hand_pkl = load_pickle_data(hand_pose_filename)
         hand_pts = hand_pkl['handJoints3D'].astype(np.float32)
+        hand_pts[:, 2] = hand_pts[:, 2] + self.hand_offset
         hand_score = hand_pkl['score']
 
         # Get the object transformation matrix
@@ -258,6 +277,7 @@ class GraspLearner:
                 
         if pair_count == 0:
             print('No available pairs between frames')
+            return approach_vector
 
         print('Approach vector\n', approach_vector / float(pair_count))
 
@@ -325,12 +345,12 @@ class GraspLearner:
         #vis.add_geometry(gripper_pcd_end)
 
         # Latest valid frame grasp pose
-        gripper_pcd_valid.paint_uniform_color([0., 1., 1.])
-        vis.add_geometry(gripper_pcd_valid)
+        #gripper_pcd_valid.paint_uniform_color([0., 1., 1.])
+        #vis.add_geometry(gripper_pcd_valid)
 
         # Final estimated grasp pose
-        #gripper_pcd_estimated.paint_uniform_color([1., 0., 0.])
-        #vis.add_geometry(gripper_pcd_estimated)
+        gripper_pcd_estimated.paint_uniform_color([1., 0., 0.])
+        vis.add_geometry(gripper_pcd_estimated)
 
         # Ground truth grasp pose
         if ground_truth_tf is not None:
@@ -361,7 +381,7 @@ class GraspLearner:
                         mm.transform(tt)
                         vis.add_geometry(mm)
 
-        #'''
+        '''
         # Visualize the grasp in the object's frame
         obj_pcd_origin = o3d.geometry.PointCloud()
         obj_pcd_origin.points = o3d.utility.Vector3dVector(self.obj_cloud_base)
@@ -373,9 +393,9 @@ class GraspLearner:
         object_frame_grasp_pcd.transform(object_frame_tf)
         object_frame_grasp_pcd.paint_uniform_color([1., 0., 0.])
         vis.add_geometry(object_frame_grasp_pcd)
-        #'''
+        '''
 
-        #'''
+        '''
         # Visualize some random grasps
         for i in range(5):
             # Random object pose
@@ -395,8 +415,6 @@ class GraspLearner:
             # Gripper cloud
             gripper_pcd_rand = o3d.geometry.PointCloud()
             gripper_pcd_rand.points = o3d.utility.Vector3dVector(np.copy(self.gripper_cloud_base))
-            #gripper_pcd_rand.transform(object_frame_tf)
-            #gripper_pcd_rand.transform(random_tf)
             grasp_tf = np.matmul(random_tf, object_frame_tf)
             gripper_pcd_rand.transform(grasp_tf)
             if i == 0:
@@ -410,7 +428,7 @@ class GraspLearner:
             elif i == 4:
                 gripper_pcd_rand.paint_uniform_color([0.7, 0.3, 0.7])
             vis.add_geometry(gripper_pcd_rand)
-        #'''
+        '''
 
         # End
         vis.run()
@@ -477,6 +495,40 @@ class GraspLearner:
         # End
         vis.run()
         vis.destroy_window()
+
+    def save_to_file(self, transform):
+        save_path = copy.deepcopy(self.dataset_directory)
+        if save_path[-1] == '/':
+            save_path = save_path[0:-1]
+        save_filename = save_path + '.npy'
+        print('Saving transform\n{}\nto file {}'.format(transform, save_filename))
+        np.save(save_filename, transform)
+
+    def combine_grasps(self):
+        # Get the name of the directory to search
+        dir_path = copy.deepcopy(self.dataset_directory)
+        if dir_path[-1] == '/':
+            dir_path = save_path[0:-1]
+        slash_idx = dir_path.rfind('/')
+        dir_path = dir_path[0:slash_idx]
+
+        # Get all grasp files
+        filelist = []
+        for f in os.listdir(dir_path):
+            if f.endswith('.npy'):
+                filelist.append(os.path.join(dir_path, f))
+        filelist.sort()
+
+        # Load each file and combine into one grasp file
+        all_grasps = []
+        for f in filelist:
+            print(f)
+            all_grasps.append(np.load(f))
+
+        # Save as a new grasp file
+        save_filename = dir_path + '.npy'
+        print('Saving grasp transformations\n{}\nto file {}'.format(np.asarray(all_grasps), save_filename))
+        np.save(save_filename, np.array(all_grasps))
 
 
 class HandPoseEstimator:
@@ -619,6 +671,26 @@ def to_iccv_format(joints):
     return iccv_joints
 
 
+def load_offset(offsets_file, dataset_path):
+    x = dataset_path.split('/')
+    object_name = x[-2]
+    bag_name = x[-1]
+    print('Object: {}  Bag: {}'.format(object_name, bag_name))
+
+    offset = 0.045
+    f = open(offsets_file, "r")
+    for line in f:
+        split_line = line.split()
+        x = split_line[0].split('/')
+        if x[-2] == object_name and x[-1] == bag_name:
+            offset = float(split_line[1])
+            print('Found offset of {}'.format(offset))
+            break
+    f.close()
+
+    return offset
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     #parser.add_argument('--pointnet_model', type=str, required=True, help='path to the pointnet model to load')
@@ -628,26 +700,31 @@ if __name__ == '__main__':
     #                    help="path to the directory that stores the object model")
 
     opt = parser.parse_args()
-    opt.pointnet_model = '/home/tpatten/Data/ICAS2020/Models/XABF_batch64_nEpoch85_regLoss_dropout0-3_augmentation_splitLoss_symmetry_lr0-01_ls20_lg0-5_arch17_newSplit_84.pth'
+    opt.pointnet_model = '/home/tpatten/Data/ICAS2020/Models/ALL_batch64_nEpoch150_regLoss_dropout0-3_augmentation_splitLoss_symmetry_lr0-01_ls20_lg0-5_arch14_149.pth'
     opt.object_model = ''
     opt.proto_file = '/home/tpatten/Code/hand-tracking/caffe_models/pose_deploy.prototxt'
     opt.weights_file = '/home/tpatten/Code/hand-tracking/caffe_models/pose_iter_102000.caffemodel'
     opt.verbose = True
     '''
     opt.target = 'ABF10'
+    opt.hand_offset = 0.045
     opt.start_frame = 0
     opt.dataset = '/home/tpatten/Data/Hands/HO3D/train'
     opt.ground_truth_prefix = 'meta/grasp_bl_'
     opt.alternate_start = False
     opt.pix2pose = False
+    opt.save = False
     '''
     #'''
     opt.target = ''
     opt.ground_truth_prefix = ''
     opt.start_frame = 0
-    opt.dataset = '/home/tpatten/Data/ICAS2020/Rosbags/005_tomato_soup_can/2020-06-16-11-46-35'
+    opt.dataset = '/home/tpatten/Data/ICAS2020/Rosbags/035_power_drill/2020-06-16-14-38-15'
+    opt.hand_offset = load_offset('/home/tpatten/Data/ICAS2020/Rosbags/offsets.txt', opt.dataset)
     opt.alternate_start = False
     opt.pix2pose = True
+    opt.save = True
+    opt.combine_grasp_files = True
     #'''
 
     if opt.target == 'BB10':
@@ -666,3 +743,30 @@ if __name__ == '__main__':
     print(opt)
 
     learner = GraspLearner(opt)
+
+    # Files
+    # ---
+    # 004_sugar_box/2020-06-16-11-56-35
+    # 004_sugar_box/2020-06-16-14-38-15
+    # 004_sugar_box/2020-06-16-15-01-01
+    # 004_sugar_box/2020-06-16-15-01-39
+    # ---
+    # 005_tomato_soup_can/2020-06-16-11-46-35
+    # 005_tomato_soup_can/2020-06-16-11-47-00
+    # 005_tomato_soup_can/2020-06-16-14-41-58
+    # 005_tomato_soup_can/2020-06-16-14-42-26
+    # ---
+    # 006_mustard_bottle/2020-06-16-11-48-42
+    # 006_mustard_bottle/2020-06-16-14-24-59
+    # 006_mustard_bottle/2020-06-16-14-25-29
+    # 006_mustard_bottle/2020-06-16-14-44-13
+    # ---
+    # 025_mug/2020-06-16-11-52-00
+    # 025_mug/2020-06-16-11-52-25
+    # 025_mug/2020-06-16-14-28-01
+    # 025_mug/2020-06-16-14-46-37
+    # ---
+    # 035_power_drill/2020-06-16-11-54-44
+    # 035_power_drill/2020-06-16-14-36-06
+    # 035_power_drill/2020-06-16-14-59-07
+    # ---

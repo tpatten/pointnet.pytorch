@@ -383,10 +383,11 @@ class HO3DDataset(data.Dataset):
         if subset_name_up[0] == 'X' and split == 'test':
             subset_name_up = subset_name_up[1:]
 
-        if subset_name_up == 'ALL':
-            splitfile = os.path.join(self.root, 'splits_new', suffix)
-        else:
-            splitfile = os.path.join(self.root, 'splits_new', subset_name_up + '_' + suffix)
+        #if subset_name_up == 'ALL':
+        #    splitfile = os.path.join(self.root, 'splits_new', suffix)
+        #else:
+        #    splitfile = os.path.join(self.root, 'splits_new', subset_name_up + '_' + suffix)
+        splitfile = os.path.join(self.root, 'splits_new', subset_name_up + '_' + suffix)
 
         split_root_name = 'train'
 
