@@ -269,6 +269,7 @@ class GraspLearner:
     @staticmethod
     def estimate_approach_vector(pts_val, pts_end):
         approach_vector = np.zeros((3, ))
+        #return approach_vector
         pair_count = 0
         for i in range(pts_val.shape[0]):
             if not np.isnan(pts_val[i][0]) and not np.isnan(pts_end[i][0]):
@@ -719,11 +720,11 @@ if __name__ == '__main__':
     opt.target = ''
     opt.ground_truth_prefix = ''
     opt.start_frame = 0
-    opt.dataset = '/home/tpatten/Data/ICAS2020/Rosbags/035_power_drill/2020-06-16-14-38-15'
+    opt.dataset = '/home/tpatten/Data/ICAS2020/Rosbags/035_power_drill/2020-06-30-14-21-30'
     opt.hand_offset = load_offset('/home/tpatten/Data/ICAS2020/Rosbags/offsets.txt', opt.dataset)
     opt.alternate_start = False
     opt.pix2pose = True
-    opt.save = True
+    opt.save = False
     opt.combine_grasp_files = True
     #'''
 
